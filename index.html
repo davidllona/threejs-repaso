@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Three.js · cuaderno de repaso</title>
+  <meta name="description" content="Repaso interactivo de Three.js: escena, geometrías, materiales, luces, sombras, shaders y Modified materials.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- Three.js va en local (carpeta vendor/) para que la web funcione sin depender de ningún CDN. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.min.js",
+      "three/addons/": "./vendor/three/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <button class="menu-btn" id="menuBtn" aria-label="Abrir índice">☰ Índice</button>
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="Índice del curso"></aside>
+    <div class="scrim" id="scrim"></div>
+    <main class="main" id="main" tabindex="-1">
+      <article class="lesson" id="lesson"></article>
+    </main>
+  </div>
+  <noscript>Esta web necesita JavaScript.</noscript>
+  <script>
+    // Si abres index.html con doble clic (file://) los módulos de JavaScript no cargan: avisamos con claridad.
+    if (location.protocol === 'file:') {
+      document.addEventListener('DOMContentLoaded', function () {
+        var box = document.getElementById('lesson');
+        if (!box) return;
+        box.innerHTML = '<h1>Falta un paso: abrir con un servidor local</h1>' +
+          '<p>Has abierto <code>index.html</code> directamente desde el disco, y los navegadores bloquean así los módulos de JavaScript.</p>' +
+          '<p>Abre una terminal dentro de esta carpeta y ejecuta <code>npx serve</code> (o <code>python3 -m http.server 8000</code>). ' +
+          'Después entra en la dirección que te indique (por ejemplo <code>http://localhost:3000</code>). ' +
+          'En VS Code también vale la extensión «Live Server». Subida a GitHub Pages, funciona sin más. Mira el README.</p>';
+      });
+    }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
