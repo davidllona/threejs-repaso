@@ -9,6 +9,15 @@ import { progress, current } from './progress.js';
 const sidebar = document.getElementById('sidebar');
 const lessonEl = document.getElementById('lesson');
 const mainEl = document.getElementById('main');
+const menuBtn = document.getElementById('menuBtn');
+const topbarTitle = document.getElementById('topbarTitle');
+const topbarProg = document.getElementById('topbarProg');
+
+function setNav(open) {
+  document.body.classList.toggle('nav-open', open);
+  menuBtn.setAttribute('aria-expanded', String(open));
+  menuBtn.setAttribute('aria-label', open ? 'Cerrar el índice de lecciones' : 'Abrir el índice de lecciones');
+}
 
 // ---------- Barra lateral ----------
 function buildSidebar() {
@@ -16,7 +25,8 @@ function buildSidebar() {
   sidebar.append(
     h('div', { class: 'brand' },
       h('a', { href: '#/inicio' }, h('strong', {}, 'Three.js'), h('span', {}, 'cuaderno de repaso')),
-      h('div', { class: 'brand-axes' }, h('i'), h('i'), h('i'))),
+      h('div', { class: 'brand-axes' }, h('i'), h('i'), h('i')),
+      h('button', { class: 'side-close', type: 'button', 'aria-label': 'Cerrar el índice', onClick: () => setNav(false) }, '✕')),
   );
 
   const search = h('input', { class: 'side-search', type: 'search', placeholder: 'Buscar lección…', 'aria-label': 'Buscar lección' });
@@ -61,6 +71,7 @@ function refreshProgress() {
   const b = document.getElementById('progBar');
   if (t) t.textContent = `${n} de ${FLAT.length} lecciones repasadas`;
   if (b) b.style.width = `${(n / FLAT.length) * 100}%`;
+  topbarProg.textContent = `${n}/${FLAT.length} ✓`;
 }
 window.addEventListener('tj-progress', refreshProgress);
 
@@ -75,7 +86,8 @@ async function route() {
   disposeAllStages();
   current.id = item.id;
   document.title = `${item.title} · Three.js repaso`;
-  document.body.classList.remove('nav-open');
+  setNav(false);
+  topbarTitle.textContent = item.title;
   lessonEl.innerHTML = '';
 
   const head = h('header', { class: 'lesson-head' },
@@ -113,15 +125,29 @@ function buildNav(item) {
   doneBtn.addEventListener('click', () => { progress.setDone(item.id, !progress.isDone(item.id)); paint(); });
   paint();
   return h('nav', { class: 'lesson-nav wide' },
-    prev ? h('a', { class: 'btn', href: `#/${prev.id}` }, `← ${prev.title}`) : null,
+    prev ? h('a', { class: 'btn nav-prev', href: `#/${prev.id}` }, `← ${prev.title}`) : null,
     h('span', { class: 'spacer' }),
     doneBtn,
-    next ? h('a', { class: 'btn', href: `#/${next.id}` }, `${next.title} →`) : null);
+    next ? h('a', { class: 'btn nav-next', href: `#/${next.id}` }, `${next.title} →`) : null);
 }
 
 // ---------- Menú móvil ----------
-document.getElementById('menuBtn').addEventListener('click', () => document.body.classList.toggle('nav-open'));
-document.getElementById('scrim').addEventListener('click', () => document.body.classList.remove('nav-open'));
+menuBtn.addEventListener('click', () => setNav(!document.body.classList.contains('nav-open')));
+document.getElementById('scrim').addEventListener('click', () => setNav(false));
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') setNav(false); });
+// al pasar a pantalla grande, el menú deja de ser un cajón
+window.matchMedia('(min-width: 1101px)').addEventListener?.('change', (e) => { if (e.matches) setNav(false); });
+// deslizar el menú hacia la izquierda lo cierra
+{
+  let x0 = 0, y0 = 0, tracking = false;
+  sidebar.addEventListener('touchstart', (e) => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; tracking = true; }, { passive: true });
+  sidebar.addEventListener('touchmove', (e) => {
+    if (!tracking) return;
+    const t = e.touches[0];
+    if (x0 - t.clientX > 60 && Math.abs(t.clientY - y0) < 40) { tracking = false; setNav(false); }
+  }, { passive: true });
+  sidebar.addEventListener('touchend', () => { tracking = false; }, { passive: true });
+}
 
 buildSidebar();
 window.addEventListener('hashchange', route);

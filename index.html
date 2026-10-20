@@ -2,7 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#15181d">
+  <meta name="color-scheme" content="dark">
   <title>Three.js · cuaderno de repaso</title>
   <meta name="description" content="Repaso interactivo de Three.js: escena, geometrías, materiales, luces, sombras, shaders y Modified materials.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,7 +23,11 @@
   </script>
 </head>
 <body>
-  <button class="menu-btn" id="menuBtn" aria-label="Abrir índice">☰ Índice</button>
+  <header class="topbar" id="topbar">
+    <button class="menu-btn" id="menuBtn" type="button" aria-label="Abrir el índice de lecciones" aria-expanded="false" aria-controls="sidebar"><span aria-hidden="true">☰</span> Índice</button>
+    <span class="topbar-title" id="topbarTitle"></span>
+    <span class="topbar-prog" id="topbarProg"></span>
+  </header>
   <div class="app">
     <aside class="sidebar" id="sidebar" aria-label="Índice del curso"></aside>
     <div class="scrim" id="scrim"></div>

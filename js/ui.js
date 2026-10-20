@@ -230,22 +230,38 @@ export function liveCode({ title = '', lang = 'js' } = {}) {
  * Editor de código sencillo y editable: <textarea> transparente encima de un <pre> coloreado.
  * codeEditor({ title, lang, value, height, onInput }) → { el, get, set, mark([líneas]), focus }
  */
-export function codeEditor({ title = '', lang = 'glsl', value = '', height = 300, onInput = null, readOnly = false } = {}) {
+export function codeEditor({ title = '', lang = 'glsl', value = '', height = 300, onInput = null, readOnly = false, autoHeight = false } = {}) {
   let marks = new Map();
   const ta = h('textarea', { class: 'ed-ta', spellcheck: 'false', autocapitalize: 'off', autocomplete: 'off', autocorrect: 'off', wrap: 'off', 'aria-label': title || 'Editor de código' });
-  if (readOnly) ta.readOnly = true;
+  if (readOnly) { ta.readOnly = true; ta.setAttribute('inputmode', 'none'); }
   const gutIn = h('div', { class: 'ed-in' });
   const codeIn = h('div', { class: 'ed-in' });
-  const wrap = h('div', { class: 'ed-wrap', style: { height: `${height}px` } },
+  const wrap = h('div', { class: 'ed-wrap', style: { '--ed-h': `${height}px` } },
     h('div', { class: 'ed-gut', 'aria-hidden': 'true' }, gutIn),
     h('div', { class: 'ed-code', 'aria-hidden': 'true' }, codeIn),
     ta);
   const titleEl = h('span', { class: 'ed-title' }, title);
   const head = h('div', { class: 'ed-head' }, titleEl, h('span', { class: 'cb-lang' }, lang.toUpperCase()));
-  const el = h('div', { class: 'ed' }, head, wrap);
+  // Barra de símbolos para el móvil (el teclado táctil esconde { } ( ) ; y no tiene Tab). Solo se ve en pantallas táctiles.
+  const keyDefs = [['⇥', '    '], ['{ }', '{}', 1], ['( )', '()', 1], [';', ';'], ['=', '='], ['.', '.'], [',', ','], ["' '", "''", 1], ['`', '`'], ['*', '*'], ['+', '+'], ['-', '-'], ['<', '<'], ['>', '>'], ['/', '/'], ['[ ]', '[]', 1]];
+  const keys = readOnly ? null : h('div', { class: 'ed-keys', role: 'toolbar', 'aria-label': 'Símbolos para escribir código' },
+    keyDefs.map(([label, txt, back]) => h('button', {
+      type: 'button', 'aria-label': `Insertar ${txt.trim() || 'tabulador'}`,
+      // pointerdown + preventDefault: el textarea no pierde el foco y el teclado no se esconde
+      onPointerdown: (e) => { e.preventDefault(); ta.focus(); ta.setRangeText(txt, ta.selectionStart, ta.selectionEnd, 'end'); if (back) ta.setSelectionRange(ta.selectionStart - back, ta.selectionStart - back); ta.dispatchEvent(new Event('input')); },
+    }, label)));
+  const el = h('div', { class: 'ed' }, head, keys, wrap);
 
+  // En pantallas estrechas el editor solo mide lo que ocupa su código (hasta el máximo): sin zonas en blanco enormes
+  const narrow = window.matchMedia ? window.matchMedia('(max-width: 900px)') : { matches: false };
+  const fitHeight = (n) => {
+    if (!autoHeight || !narrow.matches) { wrap.style.setProperty('--ed-h', `${height}px`); return; }
+    const lh = parseFloat(getComputedStyle(ta).lineHeight) || 20;
+    wrap.style.setProperty('--ed-h', `${Math.min(height, Math.max(96, n * lh + 36))}px`);
+  };
   const paint = () => {
     const lines = highlightLines(ta.value, lang);
+    fitHeight(lines.length);
     gutIn.innerHTML = lines.map((_, i) => `<span class="ed-line${marks.has(i + 1) ? ` ${marks.get(i + 1)}` : ''}">${i + 1}</span>`).join('');
     codeIn.innerHTML = lines.map((l, i) => `<span class="ed-line${marks.has(i + 1) ? ` ${marks.get(i + 1)}` : ''}">${l || ' '}</span>`).join('');
   };
@@ -274,7 +290,7 @@ export function codeEditor({ title = '', lang = 'glsl', value = '', height = 300
     get: () => ta.value,
     set(v) { ta.value = cleanCode(v); marks = new Map(); paint(); sync(); },
     mark(lines = [], cls = 'err') { marks = new Map(lines.map((l) => [l, cls])); paint(); },
-    scrollToLine(n) { ta.scrollTop = Math.max(0, (n - 4) * 20); sync(); },
+    scrollToLine(n) { const lh = parseFloat(getComputedStyle(ta).lineHeight) || 20; ta.scrollTop = Math.max(0, (n - 4) * lh); sync(); },
     focus: () => ta.focus(),
     setTitle: (t) => { titleEl.textContent = t; },
     head,

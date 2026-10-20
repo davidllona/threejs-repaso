@@ -132,7 +132,7 @@ const camera = new THREE.OrthographicCamera(
     }),
 
     H2('Controlar la cámara: OrbitControls'),
-    P('Todas las demos de esta web las puedes girar con el ratón, y es porque usan `OrbitControls`: una utilidad que mueve la cámara alrededor de un punto (el *target*). Arrastrar = orbitar, rueda = zoom, clic derecho = desplazar.'),
+    P('Todas las demos de esta web las puedes girar con el ratón, y es porque usan `OrbitControls`: una utilidad que mueve la cámara alrededor de un punto (el *target*). Arrastrar = orbitar, rueda = zoom, clic derecho = desplazar. **En el móvil o la tablet:** un dedo deslizando de lado gira la escena (deslizando en vertical sigues bajando por la página) y dos dedos hacen zoom e inclinan la cámara.'),
     codeBlock({
       title: 'script.js',
       code: `

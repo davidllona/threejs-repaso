@@ -84,7 +84,7 @@ if (mixer) mixer.update(deltaTime)`,
     demo({
       title: 'Hover y clic con Raycaster',
       aspect: '16 / 8',
-      caption: 'Pasa el ratón por encima de las esferas (se iluminan) y haz clic (alternan tamaño). El raycaster devuelve también la **distancia** del impacto y el punto exacto en 3D. Si hay varios objetos alineados, `intersects[0]` es siempre el más cercano.',
+      caption: 'Pasa el ratón por encima de las esferas (se iluminan) y haz clic (alternan tamaño). En el móvil, **toca** una esfera. El raycaster devuelve también la **distancia** del impacto y el punto exacto en 3D. Si hay varios objetos alineados, `intersects[0]` es siempre el más cercano.',
       setup({ makeStage, panel }) {
         const stage = makeStage({ pos: [0, 0.5, 7], fov: 40, orbit: false });
         const { THREE, scene, camera, canvas } = stage;
@@ -106,13 +106,20 @@ if (mixer) mixer.update(deltaTime)`,
         let hit = null;
         let ui;
         const report = (info) => ui.readout('r', info);
-        canvas.addEventListener('pointermove', (e) => {
+        const aim = (e) => {
           const r = canvas.getBoundingClientRect();
           mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
           mouse.y = -(((e.clientY - r.top) / r.height) * 2 - 1);
+        };
+        canvas.addEventListener('pointermove', aim);
+        canvas.addEventListener('pointerdown', aim);            // con el dedo no hay «hover»: apuntamos al tocar
+        canvas.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') mouse.set(9, 9); });
+        canvas.addEventListener('click', (e) => {
+          aim(e);
+          raycaster.setFromCamera(mouse, camera);
+          const first = raycaster.intersectObjects(balls)[0];
+          if (first) first.object.userData.big = !first.object.userData.big;
         });
-        canvas.addEventListener('pointerleave', () => { mouse.set(9, 9); });
-        canvas.addEventListener('click', () => { if (hit) hit.object.userData.big = !hit.object.userData.big; });
         stage.onTick((dt, t) => {
           raycaster.setFromCamera(mouse, camera);
           const intersects = raycaster.intersectObjects(balls);

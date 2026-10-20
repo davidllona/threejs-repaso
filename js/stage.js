@@ -53,6 +53,18 @@ export function createStage(container, opts = {}) {
     controls = new OrbitControls(camera, canvas);
     controls.target.set(...target);
     controls.enableDamping = true;
+    // Táctil: un dedo en vertical sigue desplazando la página (no se queda «atrapada» en la demo);
+    // un dedo en horizontal gira la escena y dos dedos hacen zoom + giro/inclinación.
+    canvas.style.touchAction = 'pan-y';
+    controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE };
+    if (window.matchMedia?.('(pointer: coarse)').matches) {
+      const hint = document.createElement('div');
+      hint.className = 'touch-hint';
+      hint.textContent = '↔ un dedo gira · dos dedos: zoom e inclinar';
+      container.append(hint);
+      canvas.addEventListener('pointerdown', () => hint.remove(), { once: true });
+      setTimeout(() => hint.remove(), 9000);
+    }
     controls.update();
   }
 

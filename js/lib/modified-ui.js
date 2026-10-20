@@ -69,7 +69,7 @@ function paintShader(ed, runner, which) {
   if (added.length) ed.scrollToLine(added[0]);
   else ed.scrollToLine(1);
 }
-const shaderSelect = () => h('select', { style: { background: '#0d0f13', color: '#e4e7ee', border: '1px solid #3a4152', borderRadius: '6px', padding: '3px 6px', font: '12.5px system-ui' } },
+const shaderSelect = () => h('select', { class: 'mini-select' },
   h('option', { value: 'main' }, 'del material'), h('option', { value: 'depth' }, 'del depthMaterial'));
 
 /* ======================================================================
@@ -91,10 +91,10 @@ export function chunkExplorer() {
   for (const m of src.matchAll(/#include <(\w+)>/g)) if (!names.includes(m[1])) names.push(m[1]);
   const star = new Set(['common', 'beginnormal_vertex', 'begin_vertex', 'project_vertex']);
 
-  const edMain = codeEditor({ title: 'vertexShader de MeshStandardMaterial (el de verdad)', lang: 'glsl', value: src, height: 440, readOnly: true });
-  const edChunk = codeEditor({ title: 'chunk', lang: 'glsl', value: '', height: 440, readOnly: true });
+  const edMain = codeEditor({ title: 'vertexShader de MeshStandardMaterial (el de verdad)', lang: 'glsl', value: src, height: 440, readOnly: true, autoHeight: true });
+  const edChunk = codeEditor({ title: 'chunk', lang: 'glsl', value: '', height: 440, readOnly: true, autoHeight: true });
   const info = h('div', { class: 'lab-status' });
-  const select = h('select', { style: { background: '#0d0f13', color: '#e4e7ee', border: '1px solid #3a4152', borderRadius: '8px', padding: '7px 10px', font: '13.5px ui-monospace, monospace' } },
+  const select = h('select', { class: 'code-select', 'aria-label': 'Elige un chunk' },
     names.map((n, i) => h('option', { value: n }, `${star.has(n) ? '★ ' : ''}${n}`)));
 
   const show = (name) => {
@@ -132,8 +132,8 @@ export function chunkExplorer() {
    2 · Laboratorio guiado
    ====================================================================== */
 export function guidedLab(ctl) {
-  const edJS = codeEditor({ title: 'Tu código (esto es lo que se ejecuta)', lang: 'js', value: '', height: 470, readOnly: true });
-  const edSh = codeEditor({ title: 'vertexShader resultante', lang: 'glsl', value: '', height: 470, readOnly: true });
+  const edJS = codeEditor({ title: 'Tu código (esto es lo que se ejecuta)', lang: 'js', value: '', height: 470, readOnly: true, autoHeight: true });
+  const edSh = codeEditor({ title: 'vertexShader resultante', lang: 'glsl', value: '', height: 470, readOnly: true, autoHeight: true });
   const sel = shaderSelect();
   edSh.head.append(sel);
   const status = h('div', { class: 'lab-status' }, 'Se compilará al empezar el laboratorio…');
@@ -248,7 +248,7 @@ const CHECKS = [
 export function challengeLab() {
   let schedule = () => {};
   const edCode = codeEditor({ title: 'Tu código (se ejecuta de verdad)', lang: 'js', value: STARTER_CODE, height: 540, onInput: () => schedule() });
-  const edSh = codeEditor({ title: 'vertexShader resultante', lang: 'glsl', value: '', height: 540, readOnly: true });
+  const edSh = codeEditor({ title: 'vertexShader resultante', lang: 'glsl', value: '', height: 540, readOnly: true, autoHeight: true });
   const sel = shaderSelect();
   edSh.head.append(sel);
   const status = h('div', { class: 'lab-status' }, 'Se ejecutará al empezar…');

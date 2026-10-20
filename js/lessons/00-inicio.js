@@ -148,7 +148,7 @@ export default function render(root) {
           { type: 'check', id: 'mat', label: 'Material (piel rosa)', value: true, onInput: (v) => { solid.visible = v; } },
           { type: 'check', id: 'light', label: 'Luz (bombilla ámbar)', value: true, onInput: (v) => { bulb.visible = v; marker.visible = v; } },
           { type: 'check', id: 'shader', label: 'Shader (retorcer los vértices)', value: false, onInput: (v) => { twistTarget = v ? 0.9 : 0; } },
-          { type: 'note', html: 'Arrastra con el ratón para girar la cámara. La rueda hace zoom.' },
+          { type: 'note', html: 'Arrastra con el ratón para girar la cámara; la rueda hace zoom. En el móvil: un dedo (de lado) gira y dos dedos hacen zoom.' },
         ]);
       },
     }),

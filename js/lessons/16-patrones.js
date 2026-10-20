@@ -338,7 +338,7 @@ function labDemo() {
       let ui1, ui2;
       const colorInputs = {};
       const colorRow = (label, id, value) => {
-        const input = h('input', { type: 'color', value, style: { width: '40px', height: '28px', padding: '0', border: '1px solid #3a4152', borderRadius: '6px', background: 'transparent', cursor: 'pointer' } });
+        const input = h('input', { class: 'color-input', type: 'color', value, 'aria-label': label });
         colorInputs[id] = input;
         input.addEventListener('input', () => setColor(uniforms[id], input.value));
         setColor(uniforms[id], value);

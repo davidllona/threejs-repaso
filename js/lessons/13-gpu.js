@@ -33,7 +33,7 @@ export default function render(root) {
     ]),
 
     H2('Míralo con números'),
-    P('Esta demo es una GPU de juguete: una cuadrícula de **píxeles grandes** y un triángulo cuyos vértices puedes **arrastrar**. Pasa por los tres primeros pasos con los botones. En el paso 3, pon el cursor sobre un píxel para ver con qué números decide su color el fragment shader.'),
+    P('Esta demo es una GPU de juguete: una cuadrícula de **píxeles grandes** y un triángulo cuyos vértices puedes **arrastrar**. Pasa por los tres primeros pasos con los botones. En el paso 3, pon el cursor sobre un píxel (o tócalo, si estás en el móvil) para ver con qué números decide su color el fragment shader.'),
     demo({
       title: 'Del triángulo a los píxeles',
       aspect: '4 / 3',
@@ -132,19 +132,21 @@ export default function render(root) {
 
         const api = canvas2d(stageEl, draw);
         const canvas = api.canvas;
-        canvas.style.touchAction = 'none';
+        // El scroll vertical de la página sigue funcionando; solo se bloquea cuando el dedo empieza sobre un vértice.
+        canvas.style.touchAction = 'pan-y';
         canvas.style.cursor = 'crosshair';
+        const coarse = window.matchMedia?.('(pointer: coarse)').matches;
 
         const info = () => {
           const { step, N, covered } = st;
           let txt;
           if (step === 1) txt = `PASO 1 · Vertex shader\nSe ejecutó 3 veces (una por\nvértice) y decidió dónde cae\ncada vértice, en coordenadas\nde -1 a 1.\n\nArrastra los puntos: es como\ncambiar el atributo position.`;
           else if (step === 2) txt = `PASO 2 · Rasterización\nLa GPU comprueba cada píxel\n(su centro) y marca los que\nquedan DENTRO del triángulo:\n\n${covered} píxeles de ${N * N}\n\nEstos son los «fragmentos».`;
-          else txt = `PASO 3 · Fragment shader\nSe ejecutó ${covered} veces, una por\nfragmento (todas a la vez).\nCada una mezcló los colores de\nlos 3 vértices según la cercanía.\n\nPon el cursor sobre un píxel.`;
+          else txt = `PASO 3 · Fragment shader\nSe ejecutó ${covered} veces, una por\nfragmento (todas a la vez).\nCada una mezcló los colores de\nlos 3 vértices según la cercanía.\n\n${coarse ? 'Toca un píxel.' : 'Pon el cursor sobre un píxel.'}`;
           ui.readout('info', txt);
         };
         const detail = () => {
-          if (!st.hover || st.step < 2) { ui.readout('pix', 'Cursor sobre la cuadrícula\npara ver un píxel.'); return; }
+          if (!st.hover || st.step < 2) { ui.readout('pix', coarse ? 'Toca un píxel de la cuadrícula\npara verlo por dentro.' : 'Cursor sobre la cuadrícula\npara ver un píxel.'); return; }
           const { i, j } = st.hover;
           const cx = ((i + 0.5) / st.N) * 2 - 1;
           const cy = 1 - ((j + 0.5) / st.N) * 2;
@@ -165,10 +167,23 @@ export default function render(root) {
           const r = canvas.getBoundingClientRect();
           return [e.clientX - r.left, e.clientY - r.top];
         };
+        const nearVertex = (px, py, radius) => st.v.findIndex((p) => { const [x, y] = toPx(p.x, p.y); return Math.hypot(x - px, y - py) < radius; });
+        const hoverAt = (px, py) => {
+          const i = Math.floor(((px - geom.ox) / geom.size) * st.N);
+          const j = Math.floor(((py - geom.oy) / geom.size) * st.N);
+          st.hover = i >= 0 && j >= 0 && i < st.N && j < st.N ? { i, j } : null;
+        };
+        // Con el dedo, el vértice se agarra desde más lejos (el dedo es gordo) y se avisa al navegador de que NO desplace la página
+        canvas.addEventListener('touchstart', (e) => {
+          const t = e.touches[0];
+          const r = canvas.getBoundingClientRect();
+          if (e.touches.length === 1 && nearVertex(t.clientX - r.left, t.clientY - r.top, 30) >= 0) e.preventDefault();
+        }, { passive: false });
         canvas.addEventListener('pointerdown', (e) => {
           const [px, py] = pointer(e);
-          st.drag = st.v.findIndex((p) => { const [x, y] = toPx(p.x, p.y); return Math.hypot(x - px, y - py) < 18; });
+          st.drag = nearVertex(px, py, e.pointerType === 'mouse' ? 18 : 30);
           if (st.drag >= 0) canvas.setPointerCapture(e.pointerId);
+          else { hoverAt(px, py); refresh(); }   // tocar un píxel = lo mismo que ponerle el cursor encima
         });
         canvas.addEventListener('pointermove', (e) => {
           const [px, py] = pointer(e);
@@ -177,13 +192,13 @@ export default function render(root) {
             st.v[st.drag].x = Math.max(-1, Math.min(1, x));
             st.v[st.drag].y = Math.max(-1, Math.min(1, y));
           }
-          const i = Math.floor(((px - geom.ox) / geom.size) * st.N);
-          const j = Math.floor(((py - geom.oy) / geom.size) * st.N);
-          st.hover = i >= 0 && j >= 0 && i < st.N && j < st.N ? { i, j } : null;
+          hoverAt(px, py);
           refresh();
         });
         canvas.addEventListener('pointerup', () => { st.drag = -1; });
-        canvas.addEventListener('pointerleave', () => { st.hover = null; refresh(); });
+        canvas.addEventListener('pointercancel', () => { st.drag = -1; });
+        // el cursor del ratón sí se «va»; el dedo deja el último píxel tocado para poder leerlo
+        canvas.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { st.hover = null; refresh(); } });
 
         ui = panel([
           { type: 'button', id: 's1', label: '1 · Vertex', onClick: () => setStep(1) },

@@ -19,6 +19,17 @@ Colores que se repiten en toda la web: cian = geometría, rosa = material, ámba
 
 El progreso (lecciones marcadas como leídas) se guarda en el `localStorage` de tu navegador.
 
+## Móvil y tablet
+
+La web está pensada para usarse también con el dedo:
+
+- **Menú:** en pantallas de menos de 1100 px el índice es un cajón (botón *Índice* en la barra superior; se cierra tocando fuera, con la ✕ o deslizando hacia la izquierda).
+- **Demos 3D:** un dedo deslizando **de lado** gira la escena; deslizando **en vertical** sigues bajando por la página (no se queda atrapada); **dos dedos** hacen zoom e inclinan la cámara.
+- **Controles:** en móvil y tablet vertical la escena se queda **fija arriba** mientras mueves los sliders de debajo. Botones, sliders y selectores tienen tamaño de dedo (≥ 44 px) y no provocan el zoom de iOS.
+- **Editores de código:** letra de 16 px y una barra con los símbolos que cuesta escribir en el teclado táctil (`{ }`, `( )`, `;`, tabulador…).
+- **Código de ejemplo:** las líneas no se parten; se desplaza de lado con el dedo.
+- Comprobado en 360 × 740, 390 × 844, 844 × 390 (móvil apaisado), 820 × 1180 (tablet vertical) y 1180 × 820 (tablet apaisada).
+
 ## Cómo verlo en tu ordenador
 
 Es una web estática (HTML + CSS + JavaScript con módulos). **Necesita un servidor local** porque los navegadores bloquean los módulos si abres `index.html` con doble clic.
@@ -54,7 +65,7 @@ El archivo `.nojekyll` evita que GitHub Pages procese los archivos con Jekyll. L
 
 ```
 index.html            Página única; carga el importmap de Three.js y js/main.js
-css/styles.css        Todo el estilo (tema oscuro, código, demos, laboratorios)
+css/styles.css        Todo el estilo (tema oscuro, código, demos, laboratorios) y la parte responsive (al final del archivo)
 vendor/three/         Three.js r177 copiado en local (sin CDN) + OrbitControls, RoomEnvironment…
 js/main.js            Router por hash (#/modified), menú lateral y progreso
 js/progress.js        Progreso guardado en localStorage

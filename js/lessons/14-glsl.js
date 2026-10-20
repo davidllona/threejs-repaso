@@ -6,10 +6,7 @@ function swizzleExplorer() {
   const state = { n: 4, vals: [1.0, 0.5, 0.25, 0.0], expr: 'v.zyx' };
   const SETS = ['xyzw', 'rgba', 'stpq'];
 
-  const input = h('input', {
-    type: 'text', value: state.expr, spellcheck: 'false',
-    style: { width: '100%', font: '600 15px ui-monospace, monospace', padding: '8px 10px', background: '#0d0f13', color: '#e4e7ee', border: '1px solid #3a4152', borderRadius: '8px' },
-  });
+  const input = h('input', { class: 'code-input', type: 'text', value: state.expr, spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off', 'aria-label': 'Expresión de swizzle, por ejemplo v.zyx' });
   const out = h('div', { class: 'readout', style: { minHeight: '120px' } });
 
   const evaluate = () => {
@@ -119,15 +116,19 @@ function functionGraph() {
       };
       const api = canvas2d(stageEl, draw);
       api.canvas.style.cursor = 'crosshair';
+      api.canvas.style.touchAction = 'pan-y';   // desliza de lado sobre la gráfica; en vertical la página sigue desplazándose
+      const coarse = window.matchMedia?.('(pointer: coarse)').matches;
+      const hint = coarse ? 'Toca o desliza el dedo sobre la gráfica.' : 'Mueve el cursor sobre la gráfica.';
       const hover = (e) => {
         const r = api.canvas.getBoundingClientRect();
         const x = (e.clientX - r.left - 44) / (r.width - 44 - 18);
         st.hx = x >= 0 && x <= 1 ? x : null;
-        if (st.hx === null) ui?.readout('info', 'Mueve el cursor sobre la gráfica.');
+        if (st.hx === null) ui?.readout('info', hint);
         api.redraw();
       };
       api.canvas.addEventListener('pointermove', hover);
-      api.canvas.addEventListener('pointerleave', () => { st.hx = null; ui?.readout('info', 'Mueve el cursor sobre la gráfica.'); api.redraw(); });
+      api.canvas.addEventListener('pointerdown', hover);
+      api.canvas.addEventListener('pointerleave', (e) => { if (e.pointerType !== 'mouse') return; st.hx = null; ui?.readout('info', hint); api.redraw(); });
 
       const update = () => {
         code.set(`
@@ -146,7 +147,7 @@ void main()
         { type: 'range', id: 'b', label: 'b', min: 0, max: 1, step: 0.01, value: st.b, onInput: (v) => { st.b = v; if (ui) update(); } },
         { type: 'range', id: 'n', label: 'n', min: 1, max: 24, step: 1, value: st.n, onInput: (v) => { st.n = v; if (ui) update(); } },
         { type: 'note', html: '`a` y `b` los usan step, smoothstep, mix y abs. `n` lo usan fract, sin y pow.' },
-        { type: 'readout', id: 'info', text: 'Mueve el cursor sobre la gráfica.' },
+        { type: 'readout', id: 'info', text: hint },
       ]);
       ui.el.append(code.el);
       update();
