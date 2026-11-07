@@ -1,4 +1,5 @@
-import { h, P, H2, H3, UL, callout, codeBlock, liveCode, demo, table, quiz, eq, figure } from '../ui.js';
+import { h, md, P, UL, callout, codeBlock, liveCode, demo, table, eq, figure } from '../ui.js';
+import { canvas2d } from '../stage.js';
 
 const FLOW_SVG = `
 <svg viewBox="0 0 1000 330" role="img" aria-label="Cómo viajan los datos de JavaScript a los shaders">
@@ -92,75 +93,12 @@ function makeShaders({ attr, vary }) {
   return { vertex, fragment };
 }
 
-export default function render(root) {
-  root.append(
-    P('Un shader es un programa que vive en la GPU y **no puede leer tus variables de JavaScript**. Ni `elapsedTime`, ni el color que eliges en lil-gui, ni la posición del ratón. Para que el shader reciba datos hay que usar unos «canales» concretos. Hay tres, y cada uno tiene una palabra clave en GLSL.'),
-
-    H2('Los tres canales'),
-    figure(h('div', { html: FLOW_SVG })),
-    table(['Canal', 'Qué es', 'Quién lo escribe', 'Quién lo lee', 'Ejemplo'], [
-      ['**attribute**', 'Un dato **distinto para cada vértice**', 'Tu JS (dentro de la geometría)', 'Solo el vertex shader', '`position`, `uv`, `normal`, tu `aRandom`'],
-      ['**uniform**', 'Un dato **igual para todo** el dibujado (todos los vértices y todos los píxeles)', 'Tu JS (en el material)', 'Vertex y fragment', '`uTime`, `uColor`, `uFrequency`'],
-      ['**varying**', 'Un dato que el vertex shader **pasa al fragment shader**', 'El vertex shader', 'El fragment shader (ya interpolado)', '`vUv`, `vElevation`'],
-    ]),
-    callout('analogy', 'Una fábrica de camisetas', [
-      P('Cada camiseta (vértice) llega con **su etiqueta** de talla y color: eso son los *attributes*. Hay un **cartel único** en la pared con las instrucciones del día («hoy bordamos en azul»): eso es un *uniform*, lo ve todo el mundo igual. Y cuando la camiseta pasa a la sección de pintado, el cortador le **escribe una nota** para el pintor: eso es un *varying*.'),
-    ]),
-
-    H3('Numéricamente: qué significa «interpolado»'),
-    P('Un varying solo se escribe en los **vértices**, pero el fragment shader corre en **cada píxel**. Los píxeles que quedan entre vértices reciben una mezcla proporcional (lo viste en la demo de la GPU):'),
-    eq(`vértice A: vElevation = 0.0\nvértice B: vElevation = 1.0\n\npíxel al 25 % del camino entre A y B → vElevation = 0.0·0.75 + 1.0·0.25 = 0.25\npíxel al 50 %                          → vElevation = 0.50\npíxel al 90 %                          → vElevation = 0.90`),
-
-    H2('Cómo se crea un material con shaders'),
-    P('`ShaderMaterial` es el material al que le das **tus dos shaders** (como texto) y tus uniforms:'),
-    codeBlock({
-      title: 'main.js',
-      lang: 'js',
-      code: `
-const geometry = new THREE.PlaneGeometry(2, 2, 32, 32)
-
-// attribute: un valor por vértice
-const count = geometry.attributes.position.count
-const randoms = new Float32Array(count)
-for (let i = 0; i < count; i++) randoms[i] = Math.random()
-geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1))
-
-// material con tus shaders y tus uniforms
-const material = new THREE.ShaderMaterial({
-    vertexShader: vertexShader,
-    fragmentShader: fragmentShader,
-    uniforms: {
-        uTime: { value: 0 },
-        uFrequency: { value: new THREE.Vector2(10, 5) },
-        uColor: { value: new THREE.Color('orange') }
-    }
-})
-
-const mesh = new THREE.Mesh(geometry, material)
-
-// en el tick: actualizar el uniform cada frame
-material.uniforms.uTime.value = elapsedTime`,
-      notes: [
-        ['PlaneGeometry(2, 2, 32, 32)', 'Un plano de 2×2 con 32×32 subdivisiones: **33 × 33 = 1089 vértices**. Sin subdivisiones no habría vértices que mover.'],
-        ['position.count', 'Cuántos vértices tiene la geometría (1089). Necesitamos **un valor por vértice**.'],
-        ['new Float32Array(count)', 'Una lista de números decimales de tamaño fijo. Los attributes viajan a la GPU como arrays tipados.'],
-        ['setAttribute', 'Registra el array con el nombre `aRandom`. El `1` final significa **1 número por vértice** (para `position` serían 3: x, y, z). En el shader lo recibes como `attribute float aRandom`.'],
-        ['new THREE.ShaderMaterial', 'Material que ejecuta **tu** código en vez del de Three.js.'],
-        ['vertexShader: vertexShader', 'El texto (string) del vertex shader. En el curso viene de un archivo `.glsl` importado; aquí lo puedes escribir en un template string.'],
-        ['uniforms: {', 'Cada uniform es un **objeto con una propiedad `value`**. Hay que respetar ese `{ value }`: Three.js lo mira cada frame.'],
-        ['uFrequency', 'Un `Vector2` de Three.js llega al shader como `vec2`.'],
-        ['uColor', 'Un `Color` de Three.js llega como `vec3` (r, g, b).'],
-        ['uniforms.uTime.value', 'Así se actualiza un uniform: **se cambia `.value`** (no se crea un objeto nuevo). Esto va dentro del `tick`.'],
-      ],
-    }),
-    callout('tip', 'Convención de nombres', [P('Es solo una costumbre del curso (GLSL no la obliga): **`a`**ttributes → `aRandom`, **`u`**niforms → `uTime`, **`v`**aryings → `vUv`. Te ayuda a saber de dónde viene cada variable al leer el shader.')]),
-
-    H2('Pruébalo: los tres canales en vivo'),
-    P('Esta demo es un `ShaderMaterial` real sobre un plano de 1089 vértices. Lo que ves en los paneles de código **es el shader que se está ejecutando**. Observa qué cambia al tocar cada cosa: los sliders (uniforms) cambian la ola sin recompilar nada; las casillas cambian el código mismo.'),
-    demo({
+/* ---------- Demo principal: los tres canales en vivo ---------- */
+function channelsDemo() {
+  return demo({
       title: 'Attribute, uniform y varying',
       aspect: '4 / 3',
-      caption: '**Sin varying:** el fragment shader no sabe nada de lo que hizo el vertex shader y pinta todo del mismo color (¡activa «wireframe» para ver el relieve!). **Con varying:** `vElevation` viaja de vértice a píxel y se convierte en color.',
+      caption: '**Sin varying** el fragment shader no sabe nada de lo que hizo el vertex shader y pinta todo del mismo color (activa «wireframe» para ver el relieve). **Con varying:** `vElevation` viaja de vértice a píxel y se convierte en color.',
       setup({ makeStage, panel, side }) {
         const stage = makeStage({ pos: [0.3, -2.3, 2.0], target: [0, 0, 0], fov: 45 });
         const { THREE } = stage;
@@ -212,20 +150,232 @@ material.uniforms.uTime.value = elapsedTime`,
         build();
         readout();
       },
-    }),
+    });
+}
 
-    H2('ShaderMaterial frente a RawShaderMaterial'),
-    P('Fíjate en que en la demo usamos `modelMatrix`, `viewMatrix`, `projectionMatrix` y `position` **sin declararlos**. Nos los regala `ShaderMaterial`: antes de compilar tu shader, Three.js le pega por encima un trozo de código con esas declaraciones. `RawShaderMaterial` no pega nada: es «crudo» y lo declaras tú todo.'),
-    table(['', '`ShaderMaterial`', '`RawShaderMaterial`'], [
-      ['Matrices (`modelMatrix`, `viewMatrix`, `projectionMatrix`, `modelViewMatrix`, `normalMatrix`) y `cameraPosition`', 'Ya declaradas', 'Las declaras tú (`uniform mat4 …`)'],
-      ['Attributes `position`, `normal`, `uv`', 'Ya declarados', 'Los declaras tú (`attribute vec3 position;`)'],
-      ['`precision`', 'La añade Three.js', 'La escribes tú (`precision mediump float;`)'],
-      ['Uso típico', '**El que usarás casi siempre**', 'Para aprender cómo funciona por dentro'],
-    ]),
-    codeBlock({
-      title: 'raw-vertex.glsl · RawShaderMaterial',
-      lang: 'glsl',
-      code: `
+/* ---------- Mini-demo: cómo se interpola un varying ---------- */
+function interpDemo() {
+  return demo({
+    title: 'Un varying entre dos vértices',
+    aspect: '16 / 7',
+    caption: 'El vertex shader solo escribe el valor en **A** y en **B**. Cada píxel de en medio recibe una mezcla proporcional a lo cerca que está de cada vértice.',
+    setup({ stageEl, panel }) {
+      const st = { a: 0.0, b: 1.0, t: 0.25 };
+      let ui;
+      const lerp = (a, b, t) => a * (1 - t) + b * t;
+      const col = (v) => { const k = Math.max(0, Math.min(1, v)); return `rgb(${Math.round(38 + k * 217)},${Math.round(51 + k * 153)},${Math.round(140 - k * 64)})`; };
+      const draw = (ctx, w, hgt) => {
+        const x0 = 46, x1 = w - 46, y = hgt * 0.5, n = 14;
+        const cw = (x1 - x0) / n;
+        for (let i = 0; i < n; i++) {
+          const t = (i + 0.5) / n;
+          ctx.fillStyle = col(lerp(st.a, st.b, t));
+          ctx.fillRect(x0 + i * cw + 1, y - 22, cw - 2, 44);
+        }
+        ctx.fillStyle = '#8b94a8'; ctx.font = '12px ui-monospace, monospace'; ctx.textAlign = 'center';
+        ctx.fillText('cada cuadradito = un píxel (un fragment)', w / 2, y + 44);
+        [[x0, st.a, 'A'], [x1, st.b, 'B']].forEach(([x, v, nm]) => {
+          ctx.fillStyle = '#4cc9e0'; ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#e4e7ee'; ctx.font = '600 13px system-ui, sans-serif';
+          ctx.fillText(`${nm} = ${v.toFixed(2)}`, x, y - 34);
+        });
+        const px = x0 + st.t * (x1 - x0);
+        ctx.strokeStyle = '#ffc857'; ctx.lineWidth = 2.5; ctx.strokeRect(px - cw / 2, y - 26, cw, 52);
+        ctx.fillStyle = '#ffc857'; ctx.font = '600 13px system-ui, sans-serif';
+        ctx.fillText(`${lerp(st.a, st.b, st.t).toFixed(2)}`, px, y + 66 > hgt - 4 ? y - 34 : y + 66);
+      };
+      const api = canvas2d(stageEl, draw);
+      const info = () => ui?.readout('calc', `píxel al ${Math.round(st.t * 100)} % de A a B\nvElevation = A·${(1 - st.t).toFixed(2)} + B·${st.t.toFixed(2)}\n           = ${(st.a * (1 - st.t)).toFixed(2)} + ${(st.b * st.t).toFixed(2)} = ${lerp(st.a, st.b, st.t).toFixed(2)}`);
+      const upd = () => { api.redraw(); info(); };
+      ui = panel([
+        { type: 'range', id: 't', label: 'Píxel (de A a B)', min: 0, max: 1, step: 0.01, value: st.t, onInput: (v) => { st.t = v; upd(); } },
+        { type: 'range', id: 'a', label: 'Valor en A', min: 0, max: 1, step: 0.05, value: st.a, onInput: (v) => { st.a = v; upd(); } },
+        { type: 'range', id: 'b', label: 'Valor en B', min: 0, max: 1, step: 0.05, value: st.b, onInput: (v) => { st.b = v; upd(); } },
+        { type: 'readout', id: 'calc' },
+      ]);
+      upd();
+    },
+  });
+}
+
+export default function cards() {
+  return [
+
+    /* 1 ------------------------------------------------------------------ */
+    {
+      t: 'Tres canales hacia la GPU',
+      body: () => [
+        figure(h('div', { html: FLOW_SVG })),
+        P('Un shader **no puede leer tus variables de JavaScript**. Ni `elapsedTime`, ni el color de lil-gui. Los datos solo le llegan por tres canales:'),
+        UL([
+          '**attribute** → un valor **distinto por vértice** (`position`, `uv`, tu `aRandom`). Solo lo lee el vertex shader.',
+          '**uniform** → **un mismo valor para todo** (`uTime`, `uColor`). Lo leen los dos shaders.',
+          '**varying** → una nota que el vertex shader **le pasa** al fragment shader (`vUv`).',
+        ]),
+      ],
+      more: () => [
+        callout('analogy', 'Una fábrica de camisetas', [
+          P('Cada camiseta (vértice) llega con **su etiqueta** de talla: *attribute*. En la pared hay **un cartel** con las instrucciones del día, igual para todos: *uniform*. Y el cortador le **deja una nota** al pintor: *varying*.'),
+        ]),
+        callout('tip', 'Convención de nombres', [P('**a**Random, **u**Time, **v**Uv: la letra te dice de qué canal viene. GLSL no lo obliga, pero ayuda muchísimo al leer.')]),
+      ],
+      check: {
+        type: 'mc',
+        q: 'Quieres que **cada vértice** tenga un número aleatorio distinto. ¿Qué canal usas?',
+        options: ['uniform', 'attribute', 'varying'],
+        answer: 1,
+        why: 'Un valor por vértice = attribute. Se guarda en la geometría con `setAttribute`.',
+      },
+    },
+
+    /* 2 ------------------------------------------------------------------ */
+    {
+      t: 'Los tres, funcionando',
+      body: () => [
+        channelsDemo(),
+        P('Esto es un `ShaderMaterial` real, y los paneles muestran el shader que se está ejecutando. Los **sliders** son uniforms: cambian la ola al instante, sin recompilar. Las **casillas** cambian el código.'),
+      ],
+      check: {
+        type: 'predict',
+        q: 'Desmarca «Colorear con vElevation» (sin mirar todavía). ¿Qué crees que pasará?',
+        options: ['La ola deja de moverse', 'La ola sigue, pero todo se pinta de un solo color', 'Sale un error de compilación'],
+        answer: 1,
+        why: 'El vertex shader sigue moviendo los vértices (la ola existe; actívale el wireframe y la verás). Pero sin el varying, el fragment shader no sabe la altura de nada y pinta todo igual. Pruébalo ahora en la demo.',
+      },
+    },
+
+    /* 3 ------------------------------------------------------------------ */
+    {
+      t: '«Interpolado», con números',
+      body: () => [
+        interpDemo(),
+        P('El vertex shader corre **por vértice**, pero el fragment shader corre **por píxel**, y hay muchos más píxeles. Así que la GPU rellena los huecos mezclando:'),
+        eq('valor del píxel = A · (1 − t) + B · t        (t = cuánto has avanzado de A a B)'),
+      ],
+      check: {
+        type: 'mc',
+        q: 'En A, `vElevation = 0.0`; en B, `1.0`. Un píxel está al **40 %** del camino. ¿Qué recibe el fragment shader?',
+        options: ['0.0', '0.4', '0.6', '1.0'],
+        answer: 1,
+        why: '0.0·0.6 + 1.0·0.4 = 0.4. Ponlo en la demo: «Píxel» a 0.40.',
+      },
+    },
+
+    /* 4 ------------------------------------------------------------------ */
+    {
+      t: 'Crear tu propio attribute',
+      body: () => [
+        codeBlock({
+          title: 'main.js',
+          lang: 'js',
+          code: `
+const geometry = new THREE.PlaneGeometry(2, 2, 32, 32)
+
+const count = geometry.attributes.position.count
+const randoms = new Float32Array(count)
+for (let i = 0; i < count; i++) randoms[i] = Math.random()
+
+geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1))`,
+          notes: [
+            ['32, 32', '32×32 subdivisiones = **33 × 33 = 1089 vértices**. Sin subdivisiones solo habría 4 y no habría nada que mover.'],
+            ['position.count', '1089: necesitas **un número por vértice**.'],
+            ['Float32Array', 'Los attributes viajan a la GPU como listas de decimales de tamaño fijo.'],
+            ['randoms, 1', 'El `1` = **1 número por vértice**. Para `position` serían 3 (x, y, z).'],
+          ],
+        }),
+        P('En el vertex shader lo recibes con el mismo nombre: `attribute float aRandom;`.'),
+      ],
+      check: {
+        type: 'order',
+        q: 'Ordena los pasos para crear el attribute:',
+        lines: [
+          '`const count = geometry.attributes.position.count`',
+          '`const randoms = new Float32Array(count)`',
+          '`for (...) randoms[i] = Math.random()`',
+          "`geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1))`",
+        ],
+        why: 'Primero sabes cuántos vértices hay, luego creas la lista de ese tamaño, la rellenas y, al final, se la das a la geometría.',
+      },
+    },
+
+    /* 5 ------------------------------------------------------------------ */
+    {
+      t: 'ShaderMaterial y sus uniforms',
+      body: () => [
+        codeBlock({
+          title: 'main.js',
+          lang: 'js',
+          code: `
+const material = new THREE.ShaderMaterial({
+    vertexShader: vertexShader,
+    fragmentShader: fragmentShader,
+    uniforms: {
+        uTime: { value: 0 },
+        uFrequency: { value: new THREE.Vector2(10, 5) }
+    }
+})
+
+// en el tick, cada frame:
+material.uniforms.uTime.value = elapsedTime`,
+          notes: [
+            ['vertexShader:', 'Tus shaders son **texto** (strings). En el curso vienen de archivos `.glsl` importados.'],
+            ['{ value: 0 }', 'Cada uniform es un **objeto con `value`**. Three.js lee ese `value` en cada frame.'],
+            ['uTime.value =', 'Se actualiza cambiando `.value`, no creando un objeto nuevo.'],
+          ],
+        }),
+        callout('warn', 'Fallo silencioso', [P('Si escribes `uTime: 0` (sin `{ value }`), o el nombre no coincide con el del shader, este recibe **0** y **no sale ningún error**.')]),
+      ],
+      check: {
+        type: 'fill',
+        q: 'Completa la línea del tick:',
+        pre: 'material.uniforms.uTime.', post: ' = elapsedTime',
+        answer: 'value',
+        accept: ['value'],
+        size: 8,
+        why: 'Siempre `.value`. Es la caja donde Three.js mira el dato que mandará a la GPU.',
+      },
+    },
+
+    /* 6 ------------------------------------------------------------------ */
+    {
+      t: 'De JavaScript a GLSL: los tipos',
+      body: () => [
+        table(['En JS (`value`)', 'En GLSL'], [
+          ['un número', '`float`'],
+          ['`new THREE.Vector2()`', '`vec2`'],
+          ['`new THREE.Vector3()` o `new THREE.Color()`', '`vec3`'],
+          ['`new THREE.Matrix4()`', '`mat4`'],
+          ['una textura', '`sampler2D`'],
+          ['`true` / `false`', '`bool`'],
+        ]),
+        P('Y en el shader se declara con el **mismo nombre**: `uniform vec2 uFrequency;`.'),
+      ],
+      check: {
+        type: 'mc',
+        q: 'Pasas `uColor: { value: new THREE.Color("orange") }`. ¿Cómo lo declaras en el shader?',
+        options: ['`uniform float uColor;`', '`uniform vec3 uColor;`', '`uniform color uColor;`'],
+        answer: 1,
+        why: 'Un color son 3 números (r, g, b) → `vec3`. En GLSL no existe el tipo `color`.',
+      },
+    },
+
+    /* 7 ------------------------------------------------------------------ */
+    {
+      t: 'ShaderMaterial o RawShaderMaterial',
+      body: () => [
+        P('En la demo usamos `modelMatrix`, `projectionMatrix` y `position` **sin declararlos**. Te los regala `ShaderMaterial`: pega esas declaraciones encima de tu código antes de compilar.'),
+        table(['', '`ShaderMaterial`', '`RawShaderMaterial`'], [
+          ['Matrices y `cameraPosition`', 'Ya declaradas', 'Las declaras tú'],
+          ['`position`, `normal`, `uv`', 'Ya declarados', 'Los declaras tú'],
+          ['`precision`', 'La pone Three.js', 'La escribes tú'],
+        ]),
+        callout('idea', 'Pista para Modified materials', [P('`MeshStandardMaterial` **también es un shader**, solo que enorme. En la lección final no escribirás uno desde cero: meterás unas pocas líneas tuyas **dentro** de ese shader ya hecho.')]),
+      ],
+      more: () => [
+        codeBlock({
+          title: 'raw-vertex.glsl · RawShaderMaterial',
+          lang: 'glsl',
+          code: `
 uniform mat4 projectionMatrix;
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
@@ -236,59 +386,19 @@ void main()
 {
     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
 }`,
-      notes: [
-        ['uniform mat4 projectionMatrix', 'Con `RawShaderMaterial` **hay que declarar** cada matriz que uses. Three.js las rellena solas porque conoce los nombres.'],
-        ['attribute vec3 position', 'Y también cada attribute. Con `ShaderMaterial` no harían falta estas 5 líneas.'],
-        ['gl_Position', 'El resto es lo mismo que ya conoces.'],
+          notes: [
+            ['uniform mat4', 'Con Raw hay que declarar cada matriz. Three.js las rellena porque conoce los nombres.'],
+            ['attribute vec3 position', 'Con `ShaderMaterial` estas cuatro líneas sobrarían.'],
+          ],
+        }),
       ],
-    }),
-    callout('idea', 'Pista para la lección final', [
-      P('Los materiales normales de Three.js (`MeshStandardMaterial`, `MeshBasicMaterial`…) **también son shaders**, pero enormes (luces, sombras, mapas…), montados juntando trozos de código de Three.js. En *Modified materials* no vas a escribir un shader desde cero: vas a **meter unas pocas líneas tuyas dentro** de uno de esos shaders ya hecho. Lo que has aprendido (uniforms, `position`, `gl_Position`) es exactamente lo mismo.'),
-    ]),
-
-    H2('Tipos de uniforms: de JS a GLSL'),
-    table(['En JavaScript (`value`)', 'En GLSL', 'Ejemplo'], [
-      ['Un número', '`float`', '`uTime: { value: 0 }`'],
-      ['`new THREE.Vector2(x, y)`', '`vec2`', '`uFrequency: { value: new THREE.Vector2(10, 5) }`'],
-      ['`new THREE.Vector3(x, y, z)` o `new THREE.Color(...)`', '`vec3`', '`uColor: { value: new THREE.Color("orange") }`'],
-      ['`new THREE.Vector4(...)`', '`vec4`', '`uSize: { value: new THREE.Vector4(1, 2, 3, 4) }`'],
-      ['`new THREE.Matrix3()` / `Matrix4()`', '`mat3` / `mat4`', '`uMatrix: { value: new THREE.Matrix4() }`'],
-      ['Una `THREE.Texture`', '`sampler2D`', '`uTexture: { value: textureLoader.load("a.png") }`'],
-      ['`true` / `false`', '`bool`', '`uActive: { value: true }`'],
-    ]),
-    P('Y en el shader declaras cada uno con el **mismo nombre**: `uniform float uTime;`, `uniform vec2 uFrequency;`, `uniform vec3 uColor;`. Si los nombres no coinciden, el shader recibirá `0` y no verás ningún error: es uno de los fallos más difíciles de ver.'),
-
-    quiz([
-      {
-        q: 'Quieres que cada vértice tenga un número aleatorio distinto. ¿Qué canal usas?',
-        options: ['uniform', 'attribute', 'varying', 'Ninguno, no se puede'],
+      check: {
+        type: 'mc',
+        q: '¿Qué te ahorra `ShaderMaterial` frente a `RawShaderMaterial`?',
+        options: ['Es más rápido en la GPU', 'Declarar las matrices, `position`, `uv`… y la precisión', 'Añade las luces de la escena solo'],
         answer: 1,
-        why: 'Un attribute lleva un valor por vértice, guardado en la geometría con `setAttribute`.',
+        why: 'La velocidad es la misma y ninguno de los dos trae luces. Solo te ahorra esas declaraciones.',
       },
-      {
-        q: 'Quieres animar con el tiempo: un solo número igual para todos los vértices y píxeles, que cambia en cada frame. ¿Qué usas?',
-        options: ['attribute', 'varying', 'uniform actualizado en el tick', 'Una constante en el shader'],
-        answer: 2,
-        why: 'Un uniform es igual para todos y lo actualizas desde JS cada frame: `material.uniforms.uTime.value = elapsedTime`.',
-      },
-      {
-        q: 'El vertex shader escribe `vElevation = 0.0` en el vértice A y `1.0` en el B. Un píxel está al 40 % del camino de A a B. ¿Cuánto vale `vElevation` en el fragment shader?',
-        options: ['0.0', '0.4', '0.6', '1.0'],
-        answer: 1,
-        why: 'El varying se interpola linealmente: 0.0·0.6 + 1.0·0.4 = 0.4.',
-      },
-      {
-        q: 'Escribes `uniforms: { uTime: 0 }` y el shader siempre ve `uTime = 0`. ¿Qué falla?',
-        options: ['Falta declarar el uniform en el fragment', 'Un uniform debe ser un objeto con `value`: `{ uTime: { value: 0 } }`', 'Los uniforms no pueden ser float', 'Hay que llamar a `renderer.update()`'],
-        answer: 1,
-        why: 'Three.js lee `uniforms.uTime.value`. Sin el objeto `{ value }`, nunca se actualiza correctamente.',
-      },
-      {
-        q: '¿Qué ventaja tiene `ShaderMaterial` frente a `RawShaderMaterial`?',
-        options: ['Es más rápido en la GPU', 'Three.js declara por ti las matrices, `position`, `uv`… y la precisión', 'Permite usar luces automáticamente', 'Admite más uniforms'],
-        answer: 1,
-        why: 'La velocidad es la misma. `ShaderMaterial` solo te ahorra escribir esas declaraciones (y las luces no vienen incluidas en ninguno de los dos).',
-      },
-    ]),
-  );
+    },
+  ];
 }

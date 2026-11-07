@@ -4,9 +4,9 @@ const KEY = 'threejs-repaso-v1';
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
-    return { done: s?.done || {}, quiz: s?.quiz || {} };
+    return { done: s?.done || {}, quiz: s?.quiz || {}, cards: s?.cards || {} };
   } catch {
-    return { done: {}, quiz: {} };
+    return { done: {}, quiz: {}, cards: {} };
   }
 }
 
@@ -29,8 +29,17 @@ export const progress = {
     if (!prev || score >= prev.score) state.quiz[id] = { score, total };
     save();
   },
+  /** Estado por tarjeta: { 0:'right'|'wrong'|'seen', ... } */
+  cards: (id) => state.cards[id] || {},
+  setCard(id, idx, status) {
+    const c = state.cards[id] || (state.cards[id] = {});
+    if (c[idx] === 'right' && status !== 'right') return; // un acierto no se degrada
+    if (c[idx] === status) return;
+    c[idx] = status;
+    save();
+  },
   doneCount: () => Object.keys(state.done).length,
-  reset() { state = { done: {}, quiz: {} }; save(); },
+  reset() { state = { done: {}, quiz: {}, cards: {} }; save(); },
 };
 
 // Lección que se está viendo ahora mismo (la rellena el router).

@@ -5,7 +5,7 @@ export const GROUPS = [
   {
     id: 'inicio', title: 'Empieza aquí', color: 'shader',
     items: [
-      { id: 'inicio', title: 'El mapa mental', sub: 'Qué pasa desde que escribes JavaScript hasta que ves píxeles. Si solo lees una página, que sea esta.', min: 12, load: () => import('./00-inicio.js') },
+      { id: 'inicio', title: 'El mapa mental', sub: 'Qué pasa desde que escribes JavaScript hasta que ves píxeles. Si solo haces una lección, que sea esta.', min: 12, load: () => import('./00-inicio.js') },
     ],
   },
   {

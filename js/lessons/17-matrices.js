@@ -1,4 +1,4 @@
-import { h, P, H2, H3, UL, OL, callout, codeBlock, liveCode, demo, table, quiz, eq } from '../ui.js';
+import { h, P, UL, callout, codeBlock, liveCode, demo, table, eq } from '../ui.js';
 import { canvas2d } from '../stage.js';
 
 const RAD = Math.PI / 180;
@@ -161,130 +161,153 @@ function twistDemo() {
   });
 }
 
-export default function render(root) {
-  root.append(
-    P('La lección *Modified materials* usa una **matriz de rotación** para retorcer un modelo. Si te dan miedo las matrices, relájate: aquí solo necesitas una de **2 × 2** y entender qué hace. No hay que memorizar fórmulas: hay que ver por qué funciona.'),
+export default function cards() {
+  return [
 
-    H2('Qué es una matriz y qué es multiplicarla'),
-    P('Una matriz es una **tabla de números** que sirve para transformar vectores. Una `mat2` es una tabla de 2 filas y 2 columnas; se multiplica por un `vec2` (un punto 2D) y devuelve otro `vec2`. La regla es «fila por columna»: cada resultado es una fila multiplicada por el vector y sumada.'),
-    eq(`| 2  0 |   | 3 |   | 2·3 + 0·5 |   |  6 |\n| 0  3 | × | 5 | = | 0·3 + 3·5 | = | 15 |\n\nEsa matriz agranda x por 2 e y por 3 (es una matriz de escala).`),
-    P('Hay una matriz especial, la **identidad**, que no cambia nada (como multiplicar por 1):'),
-    eq(`| 1  0 |   | 3 |   | 3 |\n| 0  1 | × | 5 | = | 5 |`),
+    /* 1 ------------------------------------------------------------------ */
+    {
+      t: 'Una matriz es una tabla que transforma',
+      body: () => [
+        P('Una `mat2` es una tabla de 2 × 2 números. La multiplicas por un punto 2D (`vec2`) y te devuelve **otro punto**. La regla: cada fila por el vector, y se suma.'),
+        eq(`| 2  0 |   | 3 |   | 2·3 + 0·5 |   |  6 |
+| 0  3 | × | 5 | = | 0·3 + 3·5 | = | 15 |
 
-    H2('La matriz que gira'),
-    P('Para girar un punto un ángulo `a` alrededor del origen se usa una matriz con `cos(a)` y `sin(a)`. Observa cómo gira el punto cuando mueves el ángulo y fíjate en las dos flechas (las **columnas** de la matriz):'),
-    rotateDemo(),
+→ esta matriz estira x × 2 e y × 3 (escala)`),
+        P('La **identidad** no cambia nada, como multiplicar por 1:'),
+        eq(`| 1  0 |   | 3 |   | 3 |
+| 0  1 | × | 5 | = | 5 |`),
+      ],
+      check: {
+        type: 'mc',
+        q: 'Calcula `| 2 0 ; 0 3 | × (1, 1)`.',
+        options: ['(2, 3)', '(3, 2)', '(1, 1)', '(5, 5)'],
+        answer: 0,
+        why: 'Fila 1: 2·1 + 0·1 = 2. Fila 2: 0·1 + 3·1 = 3.',
+      },
+    },
 
-    H3('Prueba con números exactos'),
-    P('Con la matriz del curso, `mat2(cos(a), -sin(a), sin(a), cos(a))`, y el punto `(1, 0)`:'),
-    table(['Ángulo', 'cos / sin', 'Resultado de M × (1, 0)', 'Qué pasó'], [
-      ['0°', '1 / 0', '(1, 0)', 'No se movió (matriz identidad)'],
-      ['90°', '0 / 1', '(0, −1)', 'Giró un cuarto de vuelta hacia abajo'],
-      ['180°', '−1 / 0', '(−1, 0)', 'Se dio la vuelta'],
-      ['45°', '0.707 / 0.707', '(0.707, −0.707)', 'Giró un octavo de vuelta'],
-    ]),
-    callout('warn', 'Trampa: las matrices de GLSL se escriben «por columnas»', [
-      P('`mat2(a, b, c, d)` **no** rellena fila a fila. Rellena **columna a columna**: la primera columna es `(a, b)` y la segunda es `(c, d)`. Es decir:'),
-      eq(`mat2(a, b, c, d)   =   | a  c |\n                      | b  d |`),
-      P('Así, `mat2(cos(a), -sin(a), sin(a), cos(a))` es la tabla `[[cos, sin], [−sin, cos]]` (la que ves en la demo). Con un ángulo positivo gira un poco «hacia atrás» respecto al sentido matemático estándar; si quieres el sentido contrario, cambia el signo del ángulo. No importa cuál sea: lo importante es que **gire**, y que siempre se aplique igual.'),
-    ]),
+    /* 2 ------------------------------------------------------------------ */
+    {
+      t: 'La matriz que gira',
+      body: () => [
+        rotateDemo(),
+        P('Con `cos(a)` y `sin(a)` dentro, la matriz **gira** el punto un ángulo `a` alrededor del origen. Las dos flechas son las **columnas**: adónde van a parar los ejes. Como todo punto es «x veces la roja + y veces la verde», todo gira igual.'),
+      ],
+      more: () => [
+        table(['Ángulo', 'cos / sin', 'M × (1, 0)'], [
+          ['0°', '1 / 0', '(1, 0) — no se mueve'],
+          ['90°', '0 / 1', '(0, −1)'],
+          ['180°', '−1 / 0', '(−1, 0)'],
+          ['45°', '0.707 / 0.707', '(0.707, −0.707)'],
+        ]),
+      ],
+      check: {
+        type: 'predict',
+        q: 'Pon **P = (1, 0)** y ángulo **90°** en la demo. Antes de mirar: ¿dónde acaba P′?',
+        options: ['(0, 1)', '(0, −1)', '(−1, 0)'],
+        answer: 1,
+        why: 'x′ = cos·1 + sin·0 = 0 · y′ = −sin·1 + cos·0 = −1. Con esta matriz (la del curso), un ángulo positivo gira en el sentido de las agujas del reloj. El sentido da igual: lo que importa es que gire.',
+      },
+    },
 
-    H2('La función que usarás'),
-    codeBlock({
-      title: 'common (se añade al shader)',
-      lang: 'glsl',
-      code: `
+    /* 3 ------------------------------------------------------------------ */
+    {
+      t: 'Trampa: se rellena por columnas',
+      body: () => [
+        eq(`mat2(a, b, c, d)   =   | a  c |
+                      | b  d |`),
+        P('`mat2(a, b, c, d)` **no** se rellena fila a fila: los dos primeros números son la **primera columna** y los dos siguientes, la segunda.'),
+        P('Por eso `mat2(cos, −sin, sin, cos)` es la tabla `| cos sin ; −sin cos |`, la que ves en la demo anterior.'),
+      ],
+      check: {
+        type: 'mc',
+        q: '¿Cuál es la **primera columna** de `mat2(0.0, -1.0, 1.0, 0.0)`?',
+        options: ['(0.0, −1.0)', '(0.0, 1.0)', '(−1.0, 0.0)'],
+        answer: 0,
+        why: 'Los dos primeros números forman la primera columna: (0.0, −1.0).',
+      },
+    },
+
+    /* 4 ------------------------------------------------------------------ */
+    {
+      t: 'La función que usarás',
+      body: () => [
+        codeBlock({
+          title: 'GLSL',
+          lang: 'glsl',
+          code: `
 mat2 get2dRotateMatrix(float _angle)
 {
     return mat2(cos(_angle), - sin(_angle), sin(_angle), cos(_angle));
-}`,
-      notes: [
-        ['mat2 get2dRotateMatrix', 'Una función propia: recibe un ángulo (en radianes) y **devuelve una matriz** `mat2` de giro.'],
-        ['return mat2', 'Construye la tabla con `cos` y `sin` del ángulo. Recuerda: se rellena por columnas.'],
-      ],
-    }),
-    P('Y se usa así, para girar un punto 2D:'),
-    codeBlock({
-      title: 'uso.glsl',
-      lang: 'glsl',
-      code: `
-float angle = 0.5;
-mat2 rotateMatrix = get2dRotateMatrix(angle);
+}
 
-vec2 p = vec2(1.0, 0.0);
-vec2 rotated = rotateMatrix * p;`,
-      notes: [
-        ['float angle', 'El ángulo en radianes (π radianes = 180°). 0.5 rad ≈ 28.6°.'],
-        ['mat2 rotateMatrix', 'Pedimos la matriz que gira `angle`.'],
-        ['vec2 p', 'El punto que queremos girar.'],
-        ['rotateMatrix * p', 'Matriz × vector = el punto girado. **El orden importa**: `matriz * vector`, nunca `vector * matriz` aquí.'],
+// uso:
+mat2 rotateMatrix = get2dRotateMatrix(0.5);
+vec2 rotated = rotateMatrix * vec2(1.0, 0.0);`,
+          notes: [
+            ['mat2 get2dRotateMatrix', 'Recibe un ángulo **en radianes** y devuelve la matriz de giro. (π rad = 180°, así que 0.5 rad ≈ 28.6°.)'],
+            ['rotateMatrix * vec2', 'Matriz × vector = el punto girado. Escríbelo siempre en este orden.'],
+          ],
+        }),
       ],
-    }),
+      check: {
+        type: 'fill',
+        q: 'Completa la última pieza de la matriz:',
+        pre: 'return mat2(cos(_angle), - sin(_angle), sin(_angle), ', post: '(_angle));',
+        answer: 'cos',
+        accept: ['cos'],
+        size: 5,
+        why: 'La diagonal es `cos, cos` y las otras dos esquinas son `sin` y `−sin`. Con ángulo 0 queda `mat2(1, 0, 0, 1)`: la identidad.',
+      },
+    },
 
-    H2('Torsión: un ángulo distinto según la altura'),
-    P('Ahora la idea del ejercicio. Un modelo vertical (como la cabeza del curso) tiene vértices a distintas alturas `y`. Si **cada vértice se gira un ángulo proporcional a su altura**, el modelo se retuerce como una toalla escurrida:'),
-    codeBlock({
-      title: 'vertex (la idea)',
-      lang: 'glsl',
-      code: `
+    /* 5 ------------------------------------------------------------------ */
+    {
+      t: 'Torsión: más giro cuanto más alto',
+      body: () => [
+        twistDemo(),
+        P('Miras una columna **desde arriba**. Cada vértice gira un ángulo **proporcional a su altura**: abajo nada, arriba mucho. Como una toalla escurrida. Es exactamente lo que hará el ejercicio final.'),
+        eq('angle = position.y × k        y = 0 → 0 rad   ·   y = 1 → 0.9 rad   ·   y = 2 → 1.8 rad'),
+      ],
+      check: {
+        type: 'predict',
+        q: 'Pon **k = 0** en la demo. ¿Qué pasará con la columna?',
+        options: ['Gira entera, toda igual', 'Queda recta: ninguna capa gira', 'Se retuerce al revés'],
+        answer: 1,
+        why: 'Con k = 0, `angle = y × 0 = 0` en todas las alturas. Girar 0 es la identidad: nada cambia. Con k negativo sí se retorcería al revés.',
+      },
+    },
+
+    /* 6 ------------------------------------------------------------------ */
+    {
+      t: 'Del dibujo al código',
+      body: () => [
+        codeBlock({
+          title: 'vertex (la idea)',
+          lang: 'glsl',
+          code: `
 float angle = position.y * 0.9;
 mat2 rotateMatrix = get2dRotateMatrix(angle);
 
 transformed.xz = rotateMatrix * transformed.xz;`,
-      notes: [
-        ['float angle', 'A altura 0 el ángulo es 0 (no se mueve nada); cuanto más arriba, más ángulo. `0.9` es cuánto retuerce por cada unidad de altura.'],
-        ['mat2 rotateMatrix', 'La matriz que gira ese ángulo.'],
-        ['transformed.xz', 'Giramos solo **x y z** (el suelo, visto desde arriba) y dejamos **y** como está: es girar **alrededor del eje vertical**. `.xz` es un swizzle usado como destino de la asignación: modifica solo esos dos componentes.'],
+          notes: [
+            ['position.y * 0.9', 'El ángulo depende de la altura. `0.9` = cuánto retuerce por unidad.'],
+            ['transformed.xz', 'Solo giramos **x y z** (el suelo visto desde arriba). La **y** no se toca: giramos alrededor del eje vertical.'],
+          ],
+        }),
+        callout('remember', 'Lo que te llevas', [UL([
+          '`mat2 × vec2` = otro `vec2`. Con `cos` y `sin`, la matriz gira.',
+          '`mat2(a, b, c, d)` se rellena por **columnas**.',
+          'Torsión = girar `.xz` con un ángulo que sale de `position.y`.',
+        ])]),
       ],
-    }),
-    table(['Altura y', 'Ángulo = y × 0.9', 'En grados'], [
-      ['0', '0.0', '0°'],
-      ['1', '0.9', '52°'],
-      ['2', '1.8', '103°'],
-      ['3', '2.7', '155°'],
-    ]),
-    twistDemo(),
-
-    callout('idea', 'Lo que te llevas', [
-      UL([
-        'Una `mat2` × `vec2` = otro `vec2`. Con `cos` y `sin` esa matriz **gira** el punto.',
-        '`mat2(a, b, c, d)` se rellena por **columnas**.',
-        'Torsión = girar `xz` un ángulo que depende de `position.y`.',
-        'Se escribe `transformed.xz = rotateMatrix * transformed.xz;` y la `y` queda intacta.',
-      ]),
-    ]),
-
-    quiz([
-      {
-        q: '¿Qué hace `mat2(1.0, 0.0, 0.0, 1.0) * vec2(3.0, 5.0)`?',
-        options: ['Devuelve `vec2(3.0, 5.0)`: es la identidad', 'Devuelve `vec2(5.0, 3.0)`', 'Devuelve `vec2(0.0, 0.0)`', 'Da un error'],
-        answer: 0,
-        why: 'Columnas (1, 0) y (0, 1): el eje x se queda en x y el y en y. No cambia nada.',
-      },
-      {
-        q: 'Calcula `mat2(2.0, 0.0, 0.0, 3.0) * vec2(1.0, 1.0)`.',
-        options: ['`vec2(2.0, 3.0)`', '`vec2(3.0, 2.0)`', '`vec2(1.0, 1.0)`', '`vec2(5.0, 5.0)`'],
-        answer: 0,
-        why: 'La primera columna (2, 0) multiplica a x = 1 y la segunda (0, 3) a y = 1: (2, 0) + (0, 3) = (2, 3).',
-      },
-      {
-        q: 'En la torsión, ¿por qué los vértices con `y = 0` no se mueven?',
-        options: ['Porque `angle = 0 × k = 0`, y girar 0 es la identidad', 'Porque están en el suelo', 'Porque `transformed.y` es 0', 'Porque el shader los ignora'],
-        answer: 0,
-        why: 'Con ángulo 0, cos = 1 y sin = 0, así que la matriz es la identidad y el punto no cambia.',
-      },
-      {
-        q: 'En `transformed.xz = rotateMatrix * transformed.xz;`, ¿qué componente NO cambia?',
-        options: ['x', 'y', 'z', 'Los tres cambian'],
+      check: {
+        type: 'mc',
+        q: 'En `transformed.xz = rotateMatrix * transformed.xz;`, ¿qué componente **no** cambia?',
+        options: ['x', 'y', 'z', 'Cambian los tres'],
         answer: 1,
-        why: 'Solo se reasignan x y z. La altura `y` se queda igual, así que giramos alrededor del eje vertical.',
+        why: 'Solo se reasignan x y z. La altura se queda igual, así que la columna gira sobre su eje vertical sin estirarse.',
       },
-      {
-        q: '¿Cuál es la primera columna de `mat2(0.0, -1.0, 1.0, 0.0)`?',
-        options: ['`(0.0, -1.0)`', '`(0.0, 1.0)`', '`(-1.0, 0.0)`', '`(0.0, 1.0)` y `(-1.0, 0.0)`'],
-        answer: 0,
-        why: 'GLSL rellena por columnas: los dos primeros números forman la primera columna.',
-      },
-    ]),
-  );
+    },
+  ];
 }

@@ -546,3 +546,128 @@ a, button, select, summary, label, input, .q-opt { touch-action: manipulation; -
   .mini-select { padding: 6px 10px; border-radius: 8px; }
   .color-input { width: 48px; height: 44px; padding: 2px; }
 }
+
+/* ==========================================================================
+   TARJETAS — una idea por pantalla
+   ========================================================================== */
+.card-head { margin-bottom: 26px; }
+.card-meta { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+.card-lesson { font: 650 13px var(--sans); color: var(--muted); letter-spacing: .02em; }
+.card-count { margin-left: auto; font: 600 13px var(--mono); color: var(--text-soft); }
+.card-sub { font-family: var(--serif); font-size: 18px; line-height: 1.55; color: var(--muted); margin: 14px 0 0; }
+.card-segs { display: flex; gap: 5px; }
+.card-segs .seg {
+  flex: 1; height: 7px; border-radius: 4px; background: var(--surface-2);
+  min-width: 10px; transition: background .2s;
+}
+.card-segs .seg.seen { background: #4a5266; }
+.card-segs .seg.ok { background: var(--ok); }
+.card-segs .seg.ko { background: var(--bad); }
+.card-segs .seg.cur { outline: 2px solid var(--shader); outline-offset: 2px; }
+.card-title {
+  font-family: var(--serif); font-weight: 500; font-size: clamp(27px, 4vw, 36px);
+  line-height: 1.15; letter-spacing: -.015em; margin: 0 0 18px; color: #fff; max-width: 740px;
+}
+.card-body > .demo:first-of-type, .card-body > .figure:first-of-type { margin-top: .6em; }
+
+/* «Entender más» */
+details.more { background: transparent; border: 1px dashed var(--line); border-radius: 12px; padding: 12px 18px; margin: 1.6em 0 0; max-width: 740px; }
+details.more > summary { cursor: pointer; font: 650 15px var(--sans); color: var(--shader); list-style: none; }
+details.more > summary::before { content: '▸ '; }
+details.more[open] > summary::before { content: '▾ '; }
+details.more[open] > summary { margin-bottom: 10px; }
+details.more p, details.more li { font-size: 17px; line-height: 1.65; }
+
+/* La pregunta de la tarjeta */
+.check:not(.ctl) {
+  margin: 2em 0 0; border: 1px solid color-mix(in srgb, var(--shader) 45%, var(--line));
+  border-radius: 14px; background: color-mix(in srgb, var(--shader) 6%, var(--surface));
+  padding: 16px 20px 18px; max-width: 740px;
+}
+.check-head { display: flex; align-items: center; gap: 10px; font: 650 13.5px var(--sans); color: var(--shader); margin-bottom: 10px; }
+.check-ico {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--shader); color: #17132b;
+  display: grid; place-items: center; font: 800 14px var(--sans);
+}
+.check .q-text { font: 600 16.5px/1.5 var(--sans); color: #fff; margin: 0 0 12px; }
+.check .q-why { display: none; margin-top: 10px; padding: 10px 14px; border-radius: 10px; background: #1b1f27; font: 15px/1.6 var(--sans); color: var(--text-soft); }
+.check.answered .q-why { display: block; }
+.check-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+
+/* fill: completa el hueco */
+.fill-line {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  font: 14.5px/1.7 var(--mono); background: #16191f; border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 14px; color: #d7dcea;
+}
+.fill-line.right { border-color: var(--ok); }
+.fill-line.wrong { border-color: var(--bad); }
+.fill-code { white-space: pre-wrap; }
+.fill-input {
+  font: 15px var(--mono); padding: 7px 10px; border-radius: 8px; min-width: 100px; width: 16ch; max-width: 100%;
+  background: var(--surface-2); border: 1px solid var(--shader); color: #fff;
+}
+.fill-line.right .fill-input { border-color: var(--ok); color: var(--ok); }
+.fill-line.wrong .fill-input { border-color: var(--bad); }
+
+/* order: ordena las líneas */
+.ord-pool { display: flex; flex-direction: column; gap: 7px; margin-bottom: 12px; }
+.ord-line {
+  text-align: left; font: 14px/1.5 var(--mono); padding: 10px 14px; border-radius: 10px; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--line); color: #d7dcea; width: 100%;
+  display: flex; align-items: center; gap: 10px;
+}
+.ord-line code { background: none; padding: 0; font-size: 1em; color: inherit; }
+.ord-line[disabled] { opacity: .3; cursor: default; }
+.ord-out { display: flex; flex-direction: column; gap: 6px; border: 1px dashed var(--line); border-radius: 10px; padding: 10px; min-height: 48px; }
+.ord-out.right { border-color: var(--ok); }
+.ord-out.wrong { border-color: var(--bad); }
+.ord-out .ord-line { cursor: default; background: #16191f; }
+.ord-n {
+  flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--shader); color: #17132b;
+  display: grid; place-items: center; font: 700 12px var(--sans);
+}
+.ord-hint { font: 13.5px var(--sans); color: var(--muted); padding: 4px 6px; }
+.ord-sol { margin: 8px 0 0; padding-left: 1.4em; font: 13.5px/1.8 var(--mono); }
+.ord-sol code { font-size: 1em; }
+
+/* predice y mira */
+.reveal { margin-top: 14px; }
+.reveal .demo, .reveal .figure { margin: 0; }
+
+/* repaso */
+.nav-short { display: none; }
+.review-ok { font-size: 19px; }
+.review-item { margin: 1.6em 0; }
+.review-link { display: inline-block; font: 600 14px var(--sans); margin-bottom: 8px; }
+
+/* navegación de tarjetas */
+.card-nav { margin-top: 44px; }
+.card-nav .btn { font-size: 15px; padding: 12px 20px; text-decoration: none; }
+
+@media (max-width: 1100px) {
+  /* el título de la lección ya está en la barra superior */
+  .card-lesson { display: none; }
+}
+@media (max-width: 760px) {
+  .card-title { font-size: 25px; }
+  .card-sub { font-size: 16.5px; }
+  .card-nav {
+    position: sticky; bottom: 0; z-index: 7; flex-direction: row; flex-wrap: nowrap; gap: 8px;
+    margin: 36px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--line);
+  }
+  .card-nav .btn { text-align: center; padding: 12px 14px; font-size: 14.5px; }
+  .card-nav .nav-prev { order: 0; flex: 0 0 auto; white-space: nowrap; }
+  .card-nav .nav-next { order: 0; flex: 1 1 auto; min-width: 0; white-space: nowrap; }
+  .card-nav .primary { order: 0; }
+  /* en el móvil, el botón hacia la lección vecina acorta su etiqueta */
+  .card-nav .nav-prev .nav-label, .card-nav .nav-next .nav-label { display: none; }
+  .card-nav .nav-short { display: inline; }
+  .card-nav .spacer { display: none; }
+}
+@media (pointer: coarse) {
+  .card-segs .seg { height: 9px; min-height: 9px; }
+  .card-segs { padding: 6px 0; }
+}
+.lab-editors.one { grid-template-columns: minmax(0, 1fr); }

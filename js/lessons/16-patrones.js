@@ -1,4 +1,5 @@
-import { h, md, P, H2, H3, UL, OL, callout, codeBlock, codeEditor, demo, table, quiz, eq, figure } from '../ui.js';
+import { h, md, P, UL, OL, callout, codeBlock, codeEditor, demo, table, eq, figure } from '../ui.js';
+import { canvas2d } from '../stage.js';
 
 /* ======================================================================
    Presets del laboratorio
@@ -380,27 +381,169 @@ function labDemo() {
   return fig;
 }
 
-export default function render(root) {
-  root.append(
-    P('Con lo que ya sabes (GPU, GLSL, attributes, uniforms y varyings) tienes todas las piezas. Esta lección es **para jugar**: aprender a pensar un shader como una receta que, dado un píxel, devuelve un color, y practicar con un laboratorio donde puedes escribir tu propio código.'),
+/* ======================================================================
+   Mini-demos (dibujadas en la CPU imitando lo que haría el fragment shader)
+   ====================================================================== */
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+const sstep = (a, b, x) => { const t = clamp01((x - a) / ((b - a) || 1e-6)); return t * t * (3 - 2 * t); };
+const PINK = [244, 114, 182], NAVY = [35, 42, 92];
 
-    H2('Pintar con matemáticas'),
-    P('Un fragment shader no «dibuja formas». Solo responde, para cada píxel, a una pregunta: **¿de qué color eres?** Y la única información útil que tiene sobre dónde está ese píxel son las coordenadas **UV**, que el vertex shader le pasa con un varying (`vUv = uv;`).'),
-    P('Las UV recorren la superficie del objeto de **0 a 1** en cada dirección, sin importar su tamaño. Si las conviertes directamente en color (x = rojo, y = verde), ves el mapa de coordenadas:'),
-    figure(h('div', { html: UV_SVG })),
+/* Pinta una función (u, v) → [r, g, b] (0..255) en un cuadrado de res×res y la escala al tamaño pedido */
+function paintField(ctx, x, y, size, res, fn) {
+  const off = paintField.c || (paintField.c = document.createElement('canvas'));
+  off.width = res; off.height = res;
+  const o = off.getContext('2d');
+  const img = o.createImageData(res, res);
+  for (let j = 0; j < res; j++) {
+    for (let i = 0; i < res; i++) {
+      const [r, g, b] = fn((i + 0.5) / res, 1 - (j + 0.5) / res);
+      const k = (j * res + i) * 4;
+      img.data[k] = r; img.data[k + 1] = g; img.data[k + 2] = b; img.data[k + 3] = 255;
+    }
+  }
+  o.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(off, x, y, size, size);
+}
 
-    H2('La receta de tres pasos'),
-    OL([
-      '**Saca un número por píxel** a partir de `vUv` (a veces `vUv.x`, a veces una distancia, etc.). Piensa: «¿qué número quiero en cada sitio?».',
-      '**Dale forma a ese número** con funciones: `mod`/`fract` (repetir), `step` (cortar), `smoothstep` (suavizar), `sin` (ondular), `distance` (círculos).',
-      '**Conviértelo en color** con `mix(colorA, colorB, número)`. Donde el número vale 0 sale `colorA`; donde vale 1, `colorB`.',
-    ]),
+function recipeDemo() {
+  return demo({
+    title: 'La receta, paso a paso',
+    aspect: '16 / 7',
+    caption: 'Los tres cuadrados son el **mismo plano** en tres momentos del fragment shader: `mod(vUv.y × n, 1.0)` → `step(corte, …)` → `mix(colorA, colorB, …)`. La línea amarilla es el píxel que sigues con números.',
+    setup({ stageEl, panel }) {
+      const st = { n: 10, edge: 0.8, y: 0.58 };
+      let ui;
+      const saw = (v) => { const x = v * st.n + 1e-6; return x - Math.floor(x); };
+      const draw = (ctx, w, hgt) => {
+        const gap = 14;
+        const size = Math.max(40, Math.min((w - gap * 4) / 3, hgt - 30 - 16));
+        const top = Math.max(30, (hgt - size) / 2 + 8);
+        const narrow = size < 170;
+        const total = size * 3 + gap * 2;
+        const x0 = (w - total) / 2;
+        const steps = [
+          [narrow ? '1 · mod' : '1 · mod(vUv.y × n, 1.0)', (u, v) => { const g = Math.round(saw(v) * 255); return [g, g, g]; }],
+          [narrow ? '2 · step' : '2 · step(corte, …)', (u, v) => { const g = saw(v) >= st.edge ? 255 : 0; return [g, g, g]; }],
+          [narrow ? '3 · mix' : '3 · mix(colorA, colorB, …)', (u, v) => { const t = saw(v) >= st.edge ? 1 : 0; return PINK.map((a, i) => Math.round(a * (1 - t) + NAVY[i] * t)); }],
+        ];
+        ctx.font = '600 12.5px system-ui, sans-serif'; ctx.textAlign = 'left';
+        steps.forEach(([label, fn], k) => {
+          const x = x0 + k * (size + gap);
+          paintField(ctx, x, top, size, 120, fn);
+          ctx.strokeStyle = '#4a5266'; ctx.lineWidth = 1; ctx.strokeRect(x, top, size, size);
+          ctx.fillStyle = '#c9cedb'; ctx.fillText(label, x, top - 10);
+          const py = top + (1 - st.y) * size;
+          ctx.strokeStyle = '#ffc857'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, py); ctx.lineTo(x + size, py); ctx.stroke();
+        });
+      };
+      const api = canvas2d(stageEl, draw);
+      const info = () => {
+        const a = st.y * st.n, b = saw(st.y), c = b >= st.edge ? 1 : 0;
+        ui?.readout('calc', `vUv.y = ${st.y.toFixed(2)}\n× ${st.n}       = ${a.toFixed(2)}\nmod(…, 1.0) = ${b.toFixed(2)}\nstep(${st.edge.toFixed(2)}, …) = ${c.toFixed(1)}\n→ ${c ? 'colorB (azul)' : 'colorA (rosa)'}`);
+      };
+      const upd = () => { api.redraw(); info(); };
+      ui = panel([
+        { type: 'range', id: 'y', label: 'Píxel: vUv.y', min: 0, max: 1, step: 0.01, value: st.y, onInput: (v) => { st.y = v; upd(); } },
+        { type: 'range', id: 'n', label: 'n (cuántas franjas)', min: 1, max: 20, step: 1, value: st.n, onInput: (v) => { st.n = v; upd(); } },
+        { type: 'range', id: 'edge', label: 'corte del step', min: 0, max: 1, step: 0.05, value: st.edge, onInput: (v) => { st.edge = v; upd(); } },
+        { type: 'readout', id: 'calc' },
+      ]);
+      upd();
+    },
+  });
+}
 
-    H3('Ejemplo 1 · Franjas'),
-    codeBlock({
-      title: 'fragment.glsl',
-      lang: 'glsl',
-      code: `
+function circleDemo() {
+  return demo({
+    title: 'Un círculo con distance',
+    aspect: '16 / 9',
+    caption: 'Izquierda: la **distancia al centro** como gris (0 negro, 0.7 blanco). Derecha: el círculo que sale de cortarla. Toca un punto para ver sus números.',
+    setup({ stageEl, panel }) {
+      const st = { r: 0.25, soft: 0, px: 0.62, py: 0.5 };
+      let ui;
+      const disc = (d) => (st.soft > 0 ? 1 - sstep(st.r - st.soft, st.r + st.soft, d) : (d < st.r ? 1 : 0));
+      const geom = { x0: 0, x1: 0, top: 0, size: 1 };
+      const draw = (ctx, w, hgt) => {
+        const gap = 22;
+        const size = Math.max(40, Math.min((w - gap * 3) / 2, hgt - 28 - 12));
+        const top = Math.max(28, (hgt - size) / 2 + 8);
+        const x0 = (w - size * 2 - gap) / 2, x1 = x0 + size + gap;
+        Object.assign(geom, { x0, x1, top, size });
+        paintField(ctx, x0, top, size, 140, (u, v) => { const g = Math.round(clamp01(Math.hypot(u - 0.5, v - 0.5) / 0.71) * 255); return [g, g, g]; });
+        paintField(ctx, x1, top, size, 140, (u, v) => { const g = Math.round(disc(Math.hypot(u - 0.5, v - 0.5)) * 255); return [g, g, g]; });
+        ctx.font = '600 12.5px system-ui, sans-serif'; ctx.fillStyle = '#c9cedb'; ctx.textAlign = 'left';
+        ctx.fillText(size < 170 ? 'distance' : 'distance(vUv, vec2(0.5))', x0, top - 10);
+        ctx.fillText(st.soft > 0 ? (size < 170 ? '1 − smoothstep' : '1 − smoothstep(…)') : '1 − step(radio, d)', x1, top - 10);
+        [x0, x1].forEach((x) => {
+          ctx.strokeStyle = '#4a5266'; ctx.lineWidth = 1; ctx.strokeRect(x, top, size, size);
+          const cx = x + size / 2, cy = top + size / 2, qx = x + st.px * size, qy = top + (1 - st.py) * size;
+          ctx.strokeStyle = '#ffc857'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(qx, qy); ctx.stroke(); ctx.setLineDash([]);
+          ctx.fillStyle = '#ffc857'; ctx.beginPath(); ctx.arc(qx, qy, 5, 0, Math.PI * 2); ctx.fill();
+        });
+      };
+      const api = canvas2d(stageEl, draw);
+      api.canvas.style.touchAction = 'pan-y';
+      api.canvas.style.cursor = 'crosshair';
+      const info = () => {
+        const d = Math.hypot(st.px - 0.5, st.py - 0.5), v = disc(d);
+        ui?.readout('calc', `vUv = (${st.px.toFixed(2)}, ${st.py.toFixed(2)})\nd = ${d.toFixed(2)}\nvalor = ${v.toFixed(2)} → ${v > 0.99 ? 'blanco (dentro)' : v < 0.01 ? 'negro (fuera)' : 'gris (en el borde)'}`);
+      };
+      const upd = () => { api.redraw(); info(); };
+      api.canvas.addEventListener('pointerdown', (e) => {
+        const r = api.canvas.getBoundingClientRect();
+        const x = e.clientX - r.left, y = e.clientY - r.top;
+        for (const gx of [geom.x0, geom.x1]) {
+          if (x >= gx && x <= gx + geom.size && y >= geom.top && y <= geom.top + geom.size) {
+            st.px = (x - gx) / geom.size; st.py = 1 - (y - geom.top) / geom.size; upd();
+          }
+        }
+      });
+      ui = panel([
+        { type: 'range', id: 'r', label: 'radio', min: 0.05, max: 0.5, step: 0.01, value: st.r, onInput: (v) => { st.r = v; upd(); } },
+        { type: 'range', id: 'soft', label: 'suavidad (0 = step)', min: 0, max: 0.15, step: 0.01, value: st.soft, onInput: (v) => { st.soft = v; upd(); } },
+        { type: 'readout', id: 'calc' },
+      ]);
+      upd();
+    },
+  });
+}
+
+export default function cards() {
+  return [
+
+    /* 1 ------------------------------------------------------------------ */
+    {
+      t: 'Pintar con matemáticas',
+      body: () => [
+        figure(h('div', { html: UV_SVG })),
+        P('Un fragment shader no dibuja formas. Para cada píxel responde a una sola pregunta: **¿de qué color eres?** Y para saber dónde está ese píxel tiene `vUv`, que va de **0 a 1** en cada dirección. Si pintas `vUv` tal cual (x = rojo, y = verde), ves este mapa.'),
+      ],
+      check: {
+        type: 'mc',
+        q: 'Con `gl_FragColor = vec4(vUv, 0.0, 1.0);`, ¿de qué color es la esquina **(1, 0)**?',
+        options: ['Negro', 'Rojo', 'Verde', 'Amarillo'],
+        answer: 1,
+        why: 'En (1, 0): rojo = 1, verde = 0 → rojo puro. Amarillo sería (1, 1), la esquina de arriba a la derecha.',
+      },
+    },
+
+    /* 2 ------------------------------------------------------------------ */
+    {
+      t: 'La receta de tres pasos',
+      body: () => [
+        recipeDemo(),
+        OL([
+          '**Saca un número** de `vUv` (aquí, una «sierra» que sube de 0 a 1 `n` veces).',
+          '**Dale forma**: `step` corta, `smoothstep` suaviza, `sin` ondula, `distance` hace círculos.',
+          '**Conviértelo en color** con `mix(colorA, colorB, número)`.',
+        ]),
+      ],
+      more: () => [
+        codeBlock({
+          title: 'fragment.glsl · las franjas',
+          lang: 'glsl',
+          code: `
 varying vec2 vUv;
 
 void main()
@@ -410,107 +553,119 @@ void main()
 
     gl_FragColor = vec4(vec3(strength), 1.0);
 }`,
-      notes: [
-        ['varying vec2 vUv', 'Recibimos las UV interpoladas que escribió el vertex shader.'],
-        ['mod(vUv.y', '`vUv.y` va de 0 a 1; multiplicado por 10 va de 0 a 10; `mod(…, 1.0)` se queda con el **resto de dividir entre 1**, así que el número sube de 0 a 1 **diez veces** (una sierra).'],
-        ['step(0.8', 'Convierte la sierra en cortes duros: 0 mientras valga menos de 0.8 y 1 a partir de ahí. Franjas blancas del 20 % de cada tramo.'],
-        ['gl_FragColor', '`vec3(strength)` repite el número en rojo, verde y azul: gris (negro si 0, blanco si 1).'],
+          notes: [
+            ['mod(vUv.y', '`mod(x, 1.0)` se queda con la **parte decimal**: 3.7 → 0.7. Por eso sube de 0 a 1 diez veces.'],
+            ['step(0.8', '0 mientras valga menos de 0.8, 1 a partir de ahí: franjas del 20 %.'],
+            ['vec3(strength)', 'El mismo número en r, g y b = gris.'],
+          ],
+        }),
       ],
-    }),
-    P('Con números, para tres píxeles:'),
-    table(['vUv.y', '× 10', 'mod(…, 1.0)', 'step(0.8, …)', 'Color'], [
-      ['0.37', '3.7', '0.7', '0.0', 'negro'],
-      ['0.58', '5.8', '0.8', '1.0', 'blanco'],
-      ['0.95', '9.5', '0.5', '0.0', 'negro'],
-    ]),
-
-    H3('Ejemplo 2 · Círculo'),
-    codeBlock({
-      title: 'fragment.glsl',
-      lang: 'glsl',
-      code: `
-varying vec2 vUv;
-
-void main()
-{
-    float d = distance(vUv, vec2(0.5));
-    float disc = 1.0 - step(0.25, d);
-
-    gl_FragColor = vec4(vec3(disc), 1.0);
-}`,
-      notes: [
-        ['distance(vUv', 'Distancia de este píxel al **centro** (0.5, 0.5). En el centro vale 0; en una esquina, aprox. 0.71.'],
-        ['1.0 - step(0.25', '`step(0.25, d)` vale 0 dentro del radio y 1 fuera; con `1.0 -` lo invertimos: blanco dentro, negro fuera. El radio es 0.25.'],
-      ],
-    }),
-    eq(`píxel (0.5, 0.6): distance = 0.10 → step(0.25, 0.10) = 0 → 1 - 0 = 1  → blanco (dentro)\npíxel (0.9, 0.5): distance = 0.40 → step(0.25, 0.40) = 1 → 1 - 1 = 0  → negro  (fuera)`),
-    callout('tip', '`step` frente a `smoothstep`', [P('`step` da bordes **duros** (con dientes de sierra). `smoothstep(a, b, x)` hace la transición **gradual** entre `a` y `b`: úsalo cuando quieras bordes suaves, como en el preset del círculo.')]),
-
-    H2('Y el vertex shader: mover vértices'),
-    P('Todo lo anterior cambia el **color**. Si en el vertex shader modificas `modelPosition` antes de proyectarlo, cambias la **forma**. En el preset de las olas se suma una `sin()` a la coordenada `z`, y el valor se envía con un varying (`vElevation`) para colorear por altura. Para ver el relieve, el plano necesita muchos vértices (aquí 65 × 65 = 4225).'),
-
-    H2('Laboratorio de shaders'),
-    P('Escoge un ejemplo, mira el código, **cámbialo** y observa. Algunas ideas para empezar: cambia `10.0` por `20.0` en las franjas, cambia `8.0` por `4.0` en el tablero, mueve los sliders `uA` y `uB`, o borra un `;` a propósito para ver cómo es un error real.'),
-    labDemo(),
-
-    callout('idea', 'Cómo funciona por dentro (te servirá en la lección final)', [
-      UL([
-        'Cada vez que cambias el código se crea un **`ShaderMaterial` nuevo** con tus dos textos.',
-        'Se llama a `renderer.render(...)` una vez para obligar a la GPU a compilarlo ya.',
-        'Si falla, Three.js llama a **`renderer.debug.onShaderError`**: ahí leemos el mensaje real (`gl.getShaderInfoLog`) y lo mostramos. Con esa función puedes ver, en cualquier proyecto tuyo, el error exacto en vez de una pantalla negra.',
-        'Los uniforms `uTime`, `uA`… viven en un único objeto que comparten todos los materiales; por eso mover un slider no recompila nada.',
-      ]),
-    ]),
-
-    H2('Retos'),
-    P('Intenta hacerlos en el laboratorio antes de mirar la pista:'),
-    h('details', {}, h('summary', {}, '1 · Tablero de 4 × 4 en vez de 8 × 8'), P('En el ejemplo 5 cambia el `8.0` por `4.0`. Es el número de casillas por lado.')),
-    h('details', {}, h('summary', {}, '2 · Franjas en vertical en vez de en horizontal'), P('En el ejemplo 4 usa `vUv.x` en vez de `vUv.y`.')),
-    h('details', {}, h('summary', {}, '3 · Un círculo que late'), P('En el ejemplo 6 declara `uniform float uTime;` y calcula `float radius = 0.25 + sin(uTime * 3.0) * 0.05;`.')),
-    h('details', {}, h('summary', {}, '4 · Un degradado en diagonal'), P('Usa `float t = (vUv.x + vUv.y) * 0.5;` y pásalo a `mix(uColorA, uColorB, t)`. En la esquina (0, 0) vale 0 y en (1, 1) vale 1.')),
-    h('details', {}, h('summary', {}, '5 · Un tablero que se desplaza'), P('Suma el tiempo antes del `floor`: `floor((vUv + vec2(uTime * 0.3, 0.0)) * 8.0)`.')),
-    h('details', {}, h('summary', {}, '6 · Rompe un shader a propósito'), P('Quita un `;`, escribe `1` en vez de `1.0`, o inventa una variable. Lee el mensaje y la ayuda que aparece: aprender a leer estos errores es media batalla.')),
-
-    callout('remember', 'Lo que te llevas', [
-      UL([
-        'Un fragment shader es una función **píxel → color**; `vUv` te dice dónde está el píxel.',
-        'Receta: número por píxel → darle forma (`mod`, `step`, `smoothstep`, `sin`, `distance`) → `mix` entre dos colores.',
-        'Con el vertex shader mueves vértices (`modelPosition.z += …`) y con un varying avisas al fragment.',
-        'Los errores de GLSL aparecen en la consola; con `renderer.debug.onShaderError` los puedes capturar.',
-      ]),
-    ]),
-
-    quiz([
-      {
-        q: 'Para pintar `vUv` como color usamos `gl_FragColor = vec4(vUv, 0.0, 1.0);`. ¿Qué color tiene la esquina (1, 0) de la superficie?',
-        options: ['Negro', 'Rojo', 'Verde', 'Amarillo'],
-        answer: 1,
-        why: 'En (1, 0): rojo = 1, verde = 0, azul = 0 → rojo puro. Amarillo sería (1, 1), la esquina opuesta.',
-      },
-      {
+      check: {
+        type: 'mc',
         q: 'Con `float s = mod(vUv.x * 4.0, 1.0);`, ¿cuánto vale `s` en un píxel con `vUv.x = 0.6`?',
-        options: ['0.4', '0.6', '2.4', '0.0'],
+        options: ['0.4', '0.6', '2.4'],
         answer: 0,
-        why: '0.6 × 4 = 2.4 y el resto de dividir entre 1 es 0.4. Es la parte decimal (como `fract`).',
+        why: '0.6 × 4 = 2.4, y `mod(2.4, 1.0)` se queda con la parte decimal: 0.4.',
       },
-      {
-        q: '¿Qué función usarías para un borde de círculo **suave**?',
-        options: ['`step`', '`smoothstep`', '`floor`', '`abs`'],
+    },
+
+    /* 3 ------------------------------------------------------------------ */
+    {
+      t: 'Círculos con distance',
+      body: () => [
+        circleDemo(),
+        codeBlock({
+          title: 'fragment.glsl',
+          lang: 'glsl',
+          code: `
+float d = distance(vUv, vec2(0.5));
+float disc = 1.0 - step(0.25, d);
+gl_FragColor = vec4(vec3(disc), 1.0);`,
+          notes: [
+            ['distance(', 'Distancia del píxel al centro: 0 en el centro, ≈ 0.71 en las esquinas.'],
+            ['1.0 - step', '`step` da 1 **fuera** del radio; restándolo de 1, el blanco queda **dentro**.'],
+          ],
+        }),
+      ],
+      check: {
+        type: 'predict',
+        q: 'Sube la **suavidad** por encima de 0. ¿Qué cambiará en el círculo?',
+        options: ['Se hace más grande', 'El borde pasa de corte duro a degradado', 'Desaparece'],
         answer: 1,
-        why: '`smoothstep` da una transición gradual entre dos valores; `step` corta de golpe.',
+        why: 'Con suavidad > 0 la demo usa `smoothstep(radio − s, radio + s, d)`: en vez de saltar de 1 a 0, el valor baja poco a poco a lo largo del borde.',
       },
-      {
-        q: 'Tu shader no compila y la pantalla se queda negra. ¿Dónde ves el error real?',
-        options: ['En el terminal de VS Code', 'En la consola del navegador (o con `renderer.debug.onShaderError`)', 'En el archivo .glsl', 'No se puede ver'],
-        answer: 1,
-        why: 'El compilador es el de la GPU del navegador, así que el mensaje sale en la consola del navegador.',
-      },
-      {
-        q: 'Quieres que un plano se ondule. ¿Qué necesita tener la geometría?',
-        options: ['Más vértices (subdivisiones)', 'Un material de metal', 'Una textura', 'Luces'],
+    },
+
+    /* 4 ------------------------------------------------------------------ */
+    {
+      t: 'El vertex shader cambia la forma',
+      body: () => [
+        P('Todo lo anterior cambia el **color**. Si en el vertex shader modificas `modelPosition` **antes** de proyectarla, cambias la **forma**:'),
+        codeBlock({
+          title: 'vertex.glsl · olas',
+          lang: 'glsl',
+          code: `
+vec4 modelPosition = modelMatrix * vec4(position, 1.0);
+float elevation = sin(modelPosition.x * 4.0 + uTime) * 0.15;
+modelPosition.z += elevation;
+vElevation = elevation;   // para colorear por altura`,
+          notes: [
+            ['sin(', 'Cada vértice sube o baja según su x: una ola. `uTime` la desplaza.'],
+            ['vElevation', 'El fragment no sabe la altura: se la pasas con un varying.'],
+          ],
+        }),
+      ],
+      check: {
+        type: 'mc',
+        q: 'Quieres que un plano se ondule. ¿Qué necesita la geometría?',
+        options: ['Muchos vértices (subdivisiones)', 'Una textura', 'Luces'],
         answer: 0,
-        why: 'El vertex shader solo puede mover vértices; con un plano de 1×1 subdivisión (4 vértices) no habría nada que ondular.',
+        why: 'El vertex shader solo mueve vértices. Un plano sin subdividir tiene 4: se inclinaría, pero nunca haría olas.',
       },
-    ]),
-  );
+    },
+
+    /* 5 ------------------------------------------------------------------ */
+    {
+      t: 'Laboratorio: ahora tú',
+      body: () => [
+        labDemo(),
+        P('Elige un ejemplo y **cámbialo**: `10.0` por `20.0` en las franjas, mueve `uA` y `uB`, o borra un `;` a propósito para ver un error real del compilador.'),
+      ],
+      more: () => [
+        UL([
+          'Cada cambio crea un **`ShaderMaterial` nuevo** con tus dos textos y llama a `renderer.render()` para compilarlo ya.',
+          'Si falla, Three.js llama a **`renderer.debug.onShaderError`**: ahí se lee el mensaje real con `gl.getShaderInfoLog`. Te sirve en cualquier proyecto.',
+          'Los uniforms viven en un único objeto compartido: por eso mover un slider no recompila nada.',
+        ]),
+      ],
+      check: {
+        type: 'mc',
+        q: 'Tu shader no compila y la pantalla se queda negra. ¿Dónde está el error real?',
+        options: ['En el terminal de VS Code', 'En la consola del navegador', 'En ningún sitio'],
+        answer: 1,
+        why: 'Quien compila es la GPU, a través del navegador, así que el mensaje sale en la consola (o lo capturas con `renderer.debug.onShaderError`).',
+      },
+    },
+
+    /* 6 ------------------------------------------------------------------ */
+    {
+      t: 'Retos',
+      body: () => [
+        P('Hazlos en el laboratorio de la tarjeta anterior antes de abrir la pista:'),
+        h('details', {}, h('summary', {}, '1 · Tablero de 4 × 4 en vez de 8 × 8'), P('En el ejemplo 5 cambia el `8.0` por `4.0`: son las casillas por lado.')),
+        h('details', {}, h('summary', {}, '2 · Un círculo que late'), P('En el ejemplo 6 declara `uniform float uTime;` y usa `float radius = 0.25 + sin(uTime * 3.0) * 0.05;`.')),
+        h('details', {}, h('summary', {}, '3 · Degradado en diagonal'), P('`float t = (vUv.x + vUv.y) * 0.5;` y luego `mix(uColorA, uColorB, t)`. En (0, 0) vale 0 y en (1, 1) vale 1.')),
+        h('details', {}, h('summary', {}, '4 · Un tablero que se desplaza'), P('Suma el tiempo antes del `floor`: `floor((vUv + vec2(uTime * 0.3, 0.0)) * 8.0)`.')),
+      ],
+      check: {
+        type: 'fill',
+        q: 'Las franjas del ejemplo 4 son horizontales. ¿Qué escribes para que sean **verticales**?',
+        pre: 'float strength = mod(vUv.', post: ' * 10.0, 1.0);',
+        answer: 'x',
+        accept: ['x', 's', 'r'],
+        size: 3,
+        why: 'Con `vUv.y` el valor cambia al subir → franjas horizontales. Con `vUv.x` cambia de izquierda a derecha → verticales.',
+      },
+    },
+  ];
 }

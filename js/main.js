@@ -5,6 +5,7 @@ import { GROUPS, FLAT, BY_ID } from './lessons/index.js';
 import { disposeAllStages } from './stage.js';
 import { h } from './ui.js';
 import { progress, current } from './progress.js';
+import { renderCardLesson } from './cards.js';
 
 const sidebar = document.getElementById('sidebar');
 const lessonEl = document.getElementById('lesson');
@@ -79,7 +80,9 @@ window.addEventListener('tj-progress', refreshProgress);
 let token = 0;
 
 async function route() {
-  const id = location.hash.replace(/^#\/?/, '') || 'inicio';
+  const raw = location.hash.replace(/^#\/?/, '') || 'inicio';
+  const [id, nStr] = raw.split('/');
+  const idx = Math.max(0, (parseInt(nStr, 10) || 1) - 1);
   const item = BY_ID[id] || BY_ID.inicio;
   const my = ++token;
 
@@ -90,19 +93,27 @@ async function route() {
   topbarTitle.textContent = item.title;
   lessonEl.innerHTML = '';
 
-  const head = h('header', { class: 'lesson-head' },
-    h('h1', {}, item.title),
-    h('p', { class: 'sub' }, item.sub),
-    h('div', { class: 'meta' },
-      h('span', { class: 'chip' }, item.group.title),
-      item.course && h('span', { class: 'chip' }, `Curso: ${item.course}`),
-      h('span', { class: 'chip' }, `~${item.min} min`)));
-  lessonEl.append(head);
-
   try {
     const mod = await item.load();
     if (my !== token) return;
-    await mod.default(lessonEl);
+    const out = await mod.default(lessonEl);
+    if (my !== token) return;
+    if (Array.isArray(out)) {
+      // Lección en formato tarjetas: el motor pinta cabecera, tarjeta y navegación.
+      lessonEl.innerHTML = '';
+      renderCardLesson(lessonEl, item, out, idx, { FLAT });
+    } else {
+      // Página clásica (la chuleta): cabecera grande + navegación de lecciones.
+      const head = h('header', { class: 'lesson-head' },
+        h('h1', {}, item.title),
+        h('p', { class: 'sub' }, item.sub),
+        h('div', { class: 'meta' },
+          h('span', { class: 'chip' }, item.group.title),
+          item.course && h('span', { class: 'chip' }, `Curso: ${item.course}`),
+          h('span', { class: 'chip' }, `~${item.min} min`)));
+      lessonEl.prepend(head);
+      lessonEl.append(buildNav(item));
+    }
   } catch (err) {
     console.error(err);
     lessonEl.append(h('div', { class: 'err-box' },
@@ -110,7 +121,6 @@ async function route() {
       h('pre', {}, String(err?.stack || err))));
   }
   if (my !== token) return;
-  lessonEl.append(buildNav(item));
   refreshProgress();
   window.scrollTo(0, 0);
   mainEl.focus({ preventScroll: true });

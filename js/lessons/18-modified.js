@@ -1,6 +1,8 @@
-import { h, md, P, H2, H3, UL, OL, callout, codeBlock, table, quiz, eq, figure } from '../ui.js';
-import { THREE } from '../stage.js';
-import { chunkExplorer, guidedLab, challengeLab, STEPS } from '../lib/modified-ui.js';
+// ============================================================================
+// Modified materials — en tarjetas. La lección estrella del repaso.
+// ============================================================================
+import { h, P, UL, OL, callout, codeBlock, table, eq, figure } from '../ui.js';
+import { chunkExplorer, miniLab, challengeLab } from '../lib/modified-ui.js';
 import { SOLUTION_CODE } from '../lib/modified-lab.js';
 
 /* Esquema: cuándo se ejecuta onBeforeCompile */
@@ -70,197 +72,198 @@ const ORDER_SVG = `
   <text x="954" y="114" text-anchor="middle" fill="#97a0b4" font-size="11.5">gl_Position</text>
 </svg>`;
 
-/** Del shader real de MeshStandardMaterial, enseñamos todo (con tabuladores → espacios) */
-const standardVertex = () => THREE.ShaderLib.standard.vertexShader.replace(/\t/g, '    ').replace(/^\n+/, '').replace(/\n\s*\n\s*\n/g, '\n\n').trim();
+const BASE = { hook: true, beginMode: 'include' };
+const TWIST = { ...BASE, twist: 'height', animate: true };
 
-export default function render(root) {
-  const ctl = { pending: 0, goTo: null, fig: null };
-  const tryIt = (n) => h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', margin: '14px 0 26px' } },
-    h('button', {
-      class: 'btn primary',
-      onClick: () => {
-        ctl.pending = n;
-        ctl.goTo?.(n);
-        ctl.fig?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+export default function cards() {
+  return [
+
+    /* 1 ------------------------------------------------------------------ */
+    {
+      t: 'Qué vamos a construir',
+      body: () => [
+        miniLab({ ...TWIST, depth: true, normals: true, slider: true }, {
+          title: 'El resultado final',
+          caption: 'Una columna que se **retuerce animada**, con su **sombra** y su **iluminación** siguiendo el giro. Gira la cámara y mueve el slider.',
+          showStatus: false,
+        }),
+        P('Esto es un `MeshStandardMaterial` normal —con su textura, sus luces y sus sombras— al que le hemos **inyectado unas líneas de shader**. Esa es la técnica de esta lección: en vez de reescribir un material desde cero, retocamos uno que ya existe.'),
+      ],
+      more: () => [
+        P('Hasta ahora tenías dos opciones: usar los materiales de Three.js tal cual (sin poder deformarlos) o escribir un `ShaderMaterial` desde cero (y entonces pierdes toda la física de la luz, las sombras y las texturas que Three.js ya resuelve: cientos de líneas de shader). La tercera vía es quedarte **todo** lo del material y añadir solo tu efecto.'),
+      ],
+      check: {
+        type: 'mc',
+        q: '¿Por qué no hacemos este efecto con un `ShaderMaterial` escrito desde cero?',
+        options: [
+          'Porque `ShaderMaterial` no permite mover vértices',
+          'Porque perderíamos las luces, sombras y texturas que `MeshStandardMaterial` ya calcula',
+          'Porque sería más lento para la GPU',
+        ],
+        answer: 1,
+        why: 'Un `ShaderMaterial` empieza vacío: tendrías que reescribir tú toda la iluminación física. Retocando el material existente conservas todo eso y añades solo la torsión.',
       },
-    }, `▶ Verlo en el laboratorio · paso ${n}`),
-    h('span', { class: 'ctl-note', style: { margin: 0 } }, STEPS[n].t));
+    },
 
-  const lab = guidedLab(ctl);
-  lab.style.scrollMarginTop = '14px';
-
-  root.append(
-    P('Esta es la lección estrella: **retorcer un modelo con un shader sin perder luces, sombras ni texturas**. Hasta ahora, o usabas los materiales de Three.js (que no puedes editar) o creabas un `ShaderMaterial` desde cero (y perdías luces, sombras, texturas…). Aquí aprendes la tercera vía: **meter tu código dentro de un material que ya existe**.'),
-    callout('analogy', 'La receta de cocina', [
-      P('`MeshStandardMaterial` es como una receta de 200 pasos ya escrita (física de la luz, sombras, texturas…). Reescribirla entera es un trabajo enorme. Lo que haremos es **dejarle una nota al cocinero justo antes de que empiece**: «en el paso 35, antes de cortar las verduras, añade esto». Esa nota es el gancho `onBeforeCompile`, y los «pasos de la receta» se llaman **chunks**.'),
-    ]),
-    P('Al terminar la lección serás capaz de escribir tú solo este ejercicio. Por eso la web te lo hace **ejecutar de verdad**: abajo tienes un laboratorio con una columna 3D y, en cada paso, el código real que se ejecuta, el shader que Three.js compila y los errores que da la GPU.'),
-
-    H2('Qué necesitas recordar'),
-    P('Esta lección junta cosas de las anteriores. Si alguna no te suena, repásala primero (5 minutos cada una):'),
-    UL([
-      '**Uniforms** (`uTime`, `value`…): [Attributes, uniforms y varyings](#/variables).',
-      '**`mat2` y rotaciones**: [Matrices y la rotación mat2](#/matrices).',
-      '**Cómo se calculan las sombras** (el mapa de sombras): [Sombras](#/sombras).',
-      '**Materiales y normales**: [Materiales](#/materiales) y [Luces](#/luces).',
-    ]),
-
-    H2('El plan: 8 pasos'),
-    table(['#', 'Qué hacemos', 'La idea clave'], [
-      ['1', 'Engancharnos al shader del material', '`material.onBeforeCompile`'],
-      ['2', 'Encontrar **dónde** escribir', 'Los *chunks* y los `#include`'],
-      ['3', 'Mover los vértices', '`transformed`'],
-      ['4', 'Retorcerlos', '`mat2` + el ángulo depende de `position.y`'],
-      ['5', 'Animarlo', 'Un uniform `uTime` y un objeto `customUniforms`'],
-      ['6', 'Arreglar la sombra (no se retuerce)', '`customDepthMaterial`'],
-      ['7', 'Arreglar la luz (se ve rara)', 'Las normales: `objectNormal`'],
-      ['8', 'Ir más lejos', 'Otras fórmulas y controles'],
-    ]),
-
-    H2('El laboratorio'),
-    P('Este laboratorio te acompañará toda la lección. Verás en cada paso unos botones **«Verlo en el laboratorio»** que te traen aquí con el paso ya preparado. También puedes usar los botones *Anterior/Siguiente* y las casillas por tu cuenta. Gira la cámara con el ratón.'),
-    lab,
-
-    /* ------------------------------------------------------------------ */
-    H2('Paso 1 · Engancharse con onBeforeCompile'),
-    P('Primero, entender **cuándo** podemos intervenir. Un material no tiene un shader «guardado»: Three.js lo **monta como un texto** la primera vez que lo necesita y se lo da a la GPU para compilar. Justo antes de compilar, mira si el material tiene una función llamada `onBeforeCompile` y, si la tienes, **la llama** pasándole el texto para que lo cambies:'),
-    figure(h('div', { html: HOOK_SVG })),
-    codeBlock({
-      title: 'main.js',
-      lang: 'js',
-      code: `
+    /* 2 ------------------------------------------------------------------ */
+    {
+      t: 'El gancho: onBeforeCompile',
+      body: () => [
+        figure(h('div', { html: HOOK_SVG })),
+        P('Un material no tiene un shader «guardado»: Three.js **monta el texto** del shader la primera vez que lo necesita. Justo antes de dárselo a la GPU, mira si el material tiene una función `onBeforeCompile` y, si existe, **la llama** con todo lo que va a compilar:'),
+        codeBlock({
+          title: 'main.js', lang: 'js',
+          code: `
 material.onBeforeCompile = (shader) =>
 {
     console.log(shader)
 }`,
-      notes: [
-        ['material.onBeforeCompile', 'Asignamos **una función** a esta propiedad del material (todos los materiales la tienen, vacía por defecto). Three.js la llamará antes de compilar. Esa función recibe un objeto, `shader`, con todo lo que va a compilar (puedes llamarlo como quieras; en el curso es `shader`).'],
-        ['console.log(shader)', 'Para ver qué contiene. Ábrelo en la consola del navegador (F12): verás `vertexShader`, `fragmentShader` y `uniforms`.'],
+          notes: [
+            ['material.onBeforeCompile', 'Asignamos **una función**. Three.js la llamará justo antes de compilar (paso 3 del esquema).'],
+            ['console.log(shader)', 'El objeto `shader` trae tres cosas: `shader.vertexShader` (texto), `shader.fragmentShader` (texto) y `shader.uniforms` (objeto).'],
+          ],
+        }),
       ],
-    }),
-    P('Lo importante de `shader`:'),
-    UL([
-      '`shader.vertexShader` → el **texto** (string) del vertex shader.',
-      '`shader.fragmentShader` → el texto del fragment shader.',
-      '`shader.uniforms` → el objeto con los uniforms del material (`diffuse`, `roughness`…). Podemos añadirle los nuestros.',
-    ]),
-    callout('warn', 'Solo se llama una vez', [
-      P('`onBeforeCompile` se ejecuta **cuando se compila el material**, no en cada frame. Si lo asignas cuando el material ya se estaba dibujando, tienes que avisar con `material.needsUpdate = true` para que se recompile.'),
-    ]),
-    P('Fíjate en el vertexShader que se ve en el laboratorio (panel de abajo a la derecha): es un texto largo lleno de líneas como `#include <begin_vertex>`. Vamos a entender qué son.'),
-    tryIt(1),
+      more: () => [
+        P('`onBeforeCompile` se ejecuta **una vez** (cuando se compila), no en cada frame. Si lo asignas cuando el material ya se está dibujando, avisa con `material.needsUpdate = true` para forzar la recompilación. Y si dos materiales distintos llevan hooks distintos pero Three.js los confunde (comparten shader), dales un `material.customProgramCacheKey = () => \'miClave\'`.'),
+      ],
+      check: {
+        type: 'mc',
+        q: '¿Cuándo llama Three.js a tu función `onBeforeCompile`?',
+        options: [
+          'En cada frame, antes de dibujar',
+          'Una sola vez, justo antes de compilar el shader del material',
+          'Cada vez que la cámara se mueve',
+        ],
+        answer: 1,
+        why: 'Solo al compilar. Por eso, para animar, no podremos «entrar» cada frame: usaremos un uniform que sí se actualiza cada frame (tarjeta 7).',
+      },
+    },
 
-    /* ------------------------------------------------------------------ */
-    H2('Paso 2 · Los chunks y los #include'),
-    P('Three.js tiene decenas de materiales y todos comparten trozos de código (la niebla, el skinning, el mapa de sombras…). Para no repetirlos, guarda cada trozo en un fichero pequeño llamado **chunk** (en `three/src/renderers/shaders/ShaderChunk/`, y disponible en JS como `THREE.ShaderChunk`). En el shader de cada material, cada chunk aparece como **una línea `#include <nombre>`**. Al final, Three.js sustituye cada `#include` por el texto del chunk y lo junta todo en **un solo shader**.'),
-    P('Este es el vertex shader real de `MeshStandardMaterial` (el que Three.js te da en `onBeforeCompile`). Mira su esqueleto: una cabecera con `#include <common>`… y dentro de `main()` una lista de chunks:'),
-    codeBlock({
-      title: 'MeshStandardMaterial · vertexShader (de tu versión de Three.js)',
-      lang: 'glsl',
-      code: standardVertex(),
-      notesOpen: true,
-      notes: [
-        ['#include <common>', 'El primero, **fuera de `main`**. Aquí caben funciones y uniforms.'],
-        ['void main()', 'Empieza el programa que se ejecuta una vez por vértice.'],
-        ['#include <beginnormal_vertex>', 'Este chunk **declara `objectNormal`** (la normal del vértice).'],
-        ['#include <defaultnormal_vertex>', 'Este y los siguientes **leen** `objectNormal` para calcular la iluminación.'],
-        ['#include <begin_vertex>', 'Este chunk **declara `transformed`**: la posición del vértice, que podremos modificar.'],
-        ['#include <project_vertex>', 'Lee `transformed` y calcula `gl_Position`. Por eso lo que le hagamos a `transformed` se verá en pantalla.'],
+    /* 3 ------------------------------------------------------------------ */
+    {
+      t: 'Los chunks: el shader por piezas',
+      body: () => [
+        P('El `shader.vertexShader` que recibes es un texto lleno de líneas `#include <nombre>`. Cada una es un **chunk**: un trozo de shader que Three.js guarda aparte y comparte entre materiales. Antes de compilar, cada `#include` se sustituye por su texto y todo queda en **un único shader**.'),
+        P('Explóralo con datos reales. A la izquierda, el vertexShader de `MeshStandardMaterial`; elige un chunk y a la derecha verás **qué contiene**:'),
+        chunkExplorer(),
       ],
-    }),
-    P('Explora tú mismo qué hay dentro de cada chunk. Elige uno y mira a la izquierda **dónde** se usa y a la derecha **qué contiene**:'),
-    chunkExplorer(),
-    callout('idea', 'Lo que tienes que quedarte', [
-      UL([
-        '`begin_vertex` → declara **`transformed`** (posición). Cambias esto = mueves el vértice.',
-        '`beginnormal_vertex` → declara **`objectNormal`** (normal). Cambias esto = giras la iluminación.',
-        '`common` → va **antes de `main`**: ahí pones funciones y uniforms propios.',
-        'Los chunks de normal van **antes** que los de posición.',
-      ]),
-    ]),
-    figure(h('div', { html: ORDER_SVG })),
+      check: {
+        type: 'mc',
+        q: 'De estos chunks, ¿cuál declara `transformed`, la variable con la **posición** del vértice que podremos modificar?',
+        options: ['`common`', '`begin_vertex`', '`project_vertex`', '`beginnormal_vertex`'],
+        answer: 1,
+        why: '`begin_vertex` hace `vec3 transformed = vec3(position);`. Después, `project_vertex` usa `transformed` para calcular `gl_Position` — por eso lo que cambies ahí se ve en pantalla. `beginnormal_vertex` declara la normal (`objectNormal`) y `common` va antes de `main()`.',
+      },
+    },
 
-    H3('Cómo «escribimos» en un chunk: replace'),
-    P('El `shader.vertexShader` es un string de JavaScript. Para añadir código en un sitio, buscamos su `#include` y lo **reemplazamos por él mismo más nuestro código**, con el `replace` normal de JS (el que ya conoces de cualquier texto):'),
-    eq(`'hola #include <x> adiós'.replace('#include <x>', 'MI TEXTO')\n   →  'hola MI TEXTO adiós'`),
-    P('Dos cosas que debes saber: `replace` **no modifica** el string original, **devuelve uno nuevo** (por eso hay que guardarlo de vuelta en `shader.vertexShader`), y solo reemplaza **la primera coincidencia**.'),
-    P('Probemos lo que dice el curso para ver qué pasa si reemplazamos **por nada**:'),
-    codeBlock({
-      title: 'main.js · ¡esto rompe!',
-      lang: 'js',
-      code: `
-material.onBeforeCompile = (shader) =>
-{
-    shader.vertexShader = shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        ''
-    )
-}`,
-      notes: [
-        ['shader.vertexShader = shader.vertexShader.replace', 'Cogemos el texto, lo cambiamos y **lo guardamos de vuelta**. Sin el `shader.vertexShader =` el cambio se perdería.'],
-        ["'#include <begin_vertex>'", 'Lo que buscamos: la línea del chunk que declara `transformed`.'],
-        ["''", 'Lo cambiamos por… nada. Esa línea desaparece, y con ella la declaración de `transformed`.'],
-      ],
-    }),
-    P('Ejecútalo en el laboratorio: la GPU protesta con `\'transformed\' : undeclared identifier`. Tiene sentido: `project_vertex` intenta usar `transformed`, que ya no existe. **Un error de compilación** no es un fallo de JavaScript: salta en la GPU y aparece en la consola.'),
-    tryIt(2),
-    P('Lo arreglamos devolviendo el `#include` justo donde estaba. Como el código nuevo tiene varias líneas, usamos **comillas invertidas** (template string):'),
-    codeBlock({
-      title: 'main.js',
-      lang: 'js',
-      code: `
-material.onBeforeCompile = (shader) =>
-{
-    shader.vertexShader = shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        \`
-            #include <begin_vertex>
-        \`
-    )
-}`,
-      notes: [
-        ['.replace(', 'Ahora `replace` recibe dos cosas: qué buscar y por qué cambiarlo.'],
-        ["'#include <begin_vertex>',", 'Lo que buscamos (entre comillas normales).'],
-        ['`', 'Abre un texto de **varias líneas** con comillas invertidas.'],
-        ['#include <begin_vertex>', 'Volvemos a poner el chunk: así `transformed` se sigue declarando.'],
-      ],
-    }),
-    P('No cambia nada visualmente, pero ahora **tenemos un sitio donde escribir**: todo lo que pongamos debajo del `#include` se ejecuta justo después de crear `transformed`.'),
-    tryIt(3),
-
-    /* ------------------------------------------------------------------ */
-    H2('Paso 3 · Mover los vértices'),
-    P('`transformed` es un `vec3` con la posición del vértice. Si le sumamos algo, el vértice se mueve (y como `project_vertex` va después, el cambio llega a la pantalla). Probemos con la altura, `y`:'),
-    codeBlock({
-      title: 'main.js',
-      lang: 'js',
-      code: `
+    /* 4 ------------------------------------------------------------------ */
+    {
+      t: 'Escribir dentro: replace',
+      body: () => [
+        P('El shader es **un string de JavaScript**. Para añadir código en un punto, buscamos su `#include` y lo reemplazamos **por él mismo más nuestras líneas**, con el `replace` de toda la vida:'),
+        eq(`'hola #include <x> adiós'.replace('#include <x>', 'MI TEXTO')\n   →  'hola MI TEXTO adiós'`),
+        codeBlock({
+          title: 'main.js', lang: 'js',
+          code: `
 shader.vertexShader = shader.vertexShader.replace(
     '#include <begin_vertex>',
     \`
         #include <begin_vertex>
 
-        transformed.y += 3.0;
+        // aquí irá nuestro código
     \`
 )`,
-      notes: [
-        ['#include <begin_vertex>', 'Primero el chunk, que crea `transformed`.'],
-        ['transformed.y += 3.0;', 'Después lo modificamos: **todos** los vértices suben 3 unidades. (Con el punto: `3.0`, recuerda las reglas de GLSL.)'],
+          notes: [
+            ['shader.vertexShader = shader', '`replace` **no modifica** el string: devuelve uno nuevo. Hay que guardarlo de vuelta.'],
+            ['#include <begin_vertex>', 'Devolvemos el include para no romper nada: `transformed` se sigue declarando, y justo debajo tenemos **un sitio donde escribir**.'],
+          ],
+        }),
       ],
-    }),
-    P('La columna sube… pero fíjate en el suelo: **su sombra se ha quedado donde estaba**. Es una pista de lo que vendrá en el paso 6. Quitamos esta línea y seguimos.'),
-    tryIt(4),
+      check: {
+        type: 'predict',
+        q: 'Predice: ¿qué pasa si reemplazas `#include <begin_vertex>` por una cadena **vacía** `\'\'`?',
+        options: [
+          'Nada: ese chunk era opcional',
+          'El objeto se dibuja sin textura',
+          'Error de compilación en la GPU: `transformed` deja de existir',
+        ],
+        answer: 2,
+        why: '`begin_vertex` es quien declara `transformed`, y `project_vertex` lo necesita después. La GPU protesta con `\'transformed\' : undeclared identifier`. Compruébalo abajo: es el error real.',
+        reveal: () => miniLab({ ...BASE, beginMode: 'nothing' }, {
+          title: 'Roto a propósito: replace por nada',
+          caption: 'El panel muestra el **error real de la GPU**. Fíjate: el dibujo conserva el último material válido (el normal).',
+          aspect: '16 / 9',
+        }),
+      },
+    },
 
-    /* ------------------------------------------------------------------ */
-    H2('Paso 4 · Retorcer: la matriz de rotación'),
-    P('Queremos girar los vértices **alrededor del eje vertical**, es decir, girar sus coordenadas `x` y `z` y dejar la `y`. Para eso usamos la matriz 2×2 de la lección anterior ([Matrices y la rotación mat2](#/matrices)). Hay tres piezas.'),
+    /* 5 ------------------------------------------------------------------ */
+    {
+      t: 'Mover vértices: transformed',
+      body: () => [
+        miniLab({ ...BASE, moveY: true }, {
+          title: 'transformed.y += 3.0',
+          caption: 'La columna sube 3 unidades… pero **su sombra se queda en el suelo**. Guárdate ese detalle: lo arreglamos en la tarjeta 9.',
+          aspect: '16 / 9',
+        }),
+        P('`transformed` es un `vec3` con la posición del vértice. Todo lo que le hagas **después** del `#include` llega a la pantalla, porque `project_vertex` lo lee más abajo. La línea inyectada aquí es:'),
+        eq('transformed.y += 3.0;'),
+        P('Recuerda GLSL: `3.0` con punto, y `;` al final. Esto mueve **todos** los vértices igual; para retorcer necesitamos que cada uno se mueva distinto.'),
+      ],
+      check: {
+        type: 'fill',
+        q: 'Completa la línea que empuja cada vértice 2 unidades a la derecha (eje x):',
+        pre: '', post: '.x += 2.0;',
+        answer: 'transformed',
+        accept: ['transformed'],
+        placeholder: 'variable',
+        size: 14,
+        why: 'Se modifica `transformed` (la copia que declara `begin_vertex`), nunca `position`: `position` es un atributo de solo lectura.',
+      },
+    },
 
-    H3('4a · Meter la función en `common`'),
-    P('La función `get2dRotateMatrix` debe existir **antes** de `main()`. El chunk `common` está justo ahí, así que lo reemplazamos igual que antes (devolviendo el include y añadiendo la función):'),
-    codeBlock({
-      title: 'main.js',
-      lang: 'js',
-      code: `
+    /* 6 ------------------------------------------------------------------ */
+    {
+      t: 'La torsión: un ángulo por altura',
+      body: () => [
+        miniLab({ ...BASE, twist: 'height' }, {
+          title: 'Ángulo según la altura',
+          caption: 'Activa y desactiva la casilla para comparar: con ángulo **fijo**, la columna solo rota; con ángulo **según la altura**, se retuerce.',
+          aspect: '16 / 9',
+          compare: { label: 'Ángulo según la altura (si no, fijo 0.3)', initial: true, on: { ...BASE, twist: 'height' }, off: { ...BASE, twist: 'const' } },
+        }),
+        P('Giramos `x` y `z` con la `mat2` de la lección de [matrices](#/matrices), dejando `y` quieta. La clave está en el ángulo: `position.y * 0.9` — **cuanto más alto el vértice, más gira**:'),
+        table(['`position.y`', 'ángulo = y × 0.9', 'qué hace'], [
+          ['−4 (base)', '−3.6 rad (−206°)', 'gira al lado contrario'],
+          ['0 (medio)', '0 rad', 'quieto'],
+          ['4 (arriba)', '3.6 rad (206°)', 'más de media vuelta'],
+        ]),
+      ],
+      more: () => [
+        P('Usamos `position.y` (el atributo original, que nunca cambia) y no `transformed.y`, para que el ángulo dependa de la altura **inicial** del vértice aunque antes lo hayas movido. Las dos líneas inyectadas en `begin_vertex` son: `float angle = position.y * 0.9;` y `transformed.xz = get2dRotateMatrix(angle) * transformed.xz;`. El `0.9` decide cuánto retuerce.'),
+      ],
+      check: {
+        type: 'mc',
+        q: 'Con `float angle = 0.3;` (igual para todos los vértices), ¿qué se ve?',
+        options: [
+          'La columna se retuerce suavemente',
+          'La columna entera rota 0.3 rad, rígida, sin deformarse',
+          'Solo gira la parte de arriba',
+        ],
+        answer: 1,
+        why: 'Torsión = **ángulos distintos** por vértice. Si todos giran lo mismo, es una rotación rígida, como hacer `mesh.rotation.y = 0.3` (pero más cara).',
+      },
+    },
+
+    /* 7 ------------------------------------------------------------------ */
+    {
+      t: 'La función va en common',
+      body: () => [
+        P('`get2dRotateMatrix` no existe en GLSL: hay que **definirla en el shader**, fuera de `main()` y antes de usarla. El chunk `common` está exactamente ahí, así que lo reemplazamos igual que antes:'),
+        codeBlock({
+          title: 'main.js', lang: 'js',
+          code: `
 shader.vertexShader = shader.vertexShader.replace(
     '#include <common>',
     \`
@@ -272,107 +275,38 @@ shader.vertexShader = shader.vertexShader.replace(
         }
     \`
 )`,
-      notes: [
-        ["'#include <common>'", 'Ahora buscamos otro chunk: `common`, que está **antes** de `main()`.'],
-        ['#include <common>', 'Lo devolvemos para no romper nada.'],
-        ['mat2 get2dRotateMatrix', 'Añadimos nuestra función. Como `common` se pega fuera de `main`, ya está disponible en **todo** el shader.'],
+          notes: [
+            ["'#include <common>'", '`common` se incluye **antes de `main()`**: lo que pongas aquí vale para todo el shader.'],
+            ['mat2 get2dRotateMatrix', 'La matriz de rotación 2D de la lección de matrices, tal cual.'],
+          ],
+        }),
+        figure(h('div', { html: ORDER_SVG })),
       ],
-    }),
-    P('Todavía no se nota nada, pero la función ya existe en el shader final. (Si quieres comprobarlo, mira el panel del laboratorio: las líneas verdes son las que has añadido tú.)'),
+      check: {
+        type: 'order',
+        q: 'Ordena las tres piezas como quedan en el shader final (de arriba abajo):',
+        lines: [
+          'mat2 get2dRotateMatrix(...) { ... }   // en <common>, fuera de main',
+          'float angle = position.y * 0.9;       // en <begin_vertex>',
+          'transformed.xz = rotateMatrix * transformed.xz;',
+        ],
+        why: 'Las funciones viven antes de `main()` (chunk `common`); dentro de `main()`, primero calculas el ángulo y luego lo aplicas a `transformed`.',
+      },
+    },
 
-    H3('4b · Un ángulo fijo, para probar'),
-    codeBlock({
-      title: 'main.js',
-      lang: 'js',
-      code: `
-shader.vertexShader = shader.vertexShader.replace(
-    '#include <begin_vertex>',
-    \`
-        #include <begin_vertex>
-
-        float angle = 0.3;
-        mat2 rotateMatrix = get2dRotateMatrix(angle);
-
-        transformed.xz = rotateMatrix * transformed.xz;
-    \`
-)`,
-      notes: [
-        ['float angle = 0.3;', 'Un ángulo cualquiera (en radianes) para probar. 0.3 rad ≈ 17°.'],
-        ['mat2 rotateMatrix', 'Pedimos la matriz que gira ese ángulo.'],
-        ['transformed.xz = rotateMatrix * transformed.xz;', 'Multiplicamos la matriz por las coordenadas `x` y `z` y guardamos el resultado en esas mismas dos. La `y` no se toca: giramos **alrededor del eje vertical**.'],
-      ],
-    }),
-    P('Toda la columna gira 17° — pero **igual** todos los vértices, así que no se «retuerce»: se limita a rotar. Y la sombra no se entera (más adelante).'),
-    tryIt(5),
-
-    H3('4c · El ángulo depende de la altura'),
-    P('El toque final: que cada vértice gire **un ángulo distinto según su altura**. Sustituimos el `0.3` por `position.y * 0.9`:'),
-    codeBlock({
-      title: 'main.js',
-      lang: 'glsl',
-      code: `
-float angle = position.y * 0.9;`,
-      notes: [['float angle', '`position` es el atributo original del vértice (no cambia aunque modifiquemos `transformed`). Altura 0 → ángulo 0; altura 4 → 3.6 rad (206°). Cuanto más alto el vértice, más gira: **torsión**. El `0.9` decide cuánto retuerce.']],
-    }),
-    table(['Altura (`position.y`)', 'Ángulo = y × 0.9', 'En grados', 'Qué le pasa'], [
-      ['−4 (la base)', '−3.6 rad', '−206°', 'gira hacia el lado contrario'],
-      ['0 (el medio)', '0 rad', '0°', 'no se mueve'],
-      ['2', '1.8 rad', '103°', 'gira bastante'],
-      ['4 (la parte de arriba)', '3.6 rad', '206°', 'gira más de media vuelta'],
-    ]),
-    tryIt(6),
-    callout('tip', 'Por qué `position.y` y no `transformed.y`', [
-      P('Usamos `position.y` (el original) en lugar de `transformed.y` para que el ángulo dependa siempre de la altura **inicial** del vértice. Con `transformed.y` el resultado cambiaría si ya hubieses movido el vértice antes.'),
-    ]),
-
-    /* ------------------------------------------------------------------ */
-    H2('Paso 5 · Animarlo: el uniform uTime'),
-    P('Para animar, el ángulo debe cambiar con el tiempo, y el shader no tiene reloj propio. Usamos la técnica de la lección de uniforms: un `uTime` que sube desde JavaScript. La diferencia es que aquí **no creamos nosotros el material**, así que tenemos un pequeño problema que se resuelve en cuatro movimientos.'),
-    H3('5a · Añadir el uniform al shader'),
-    P('Dentro del hook, `shader.uniforms` es donde se guardan los uniforms. Añadimos el nuestro, y lo declaramos en el shader (en `common`, antes de usarlo):'),
-    codeBlock({
-      title: 'main.js',
-      lang: 'js',
-      code: `
-material.onBeforeCompile = (shader) =>
-{
-    shader.uniforms.uTime = { value: 0 }
-
-    shader.vertexShader = shader.vertexShader.replace(
-        '#include <common>',
-        \`
-            #include <common>
-
-            uniform float uTime;
-
-            mat2 get2dRotateMatrix(float _angle)
-            {
-                return mat2(cos(_angle), - sin(_angle), sin(_angle), cos(_angle));
-            }
-        \`
-    )
-}`,
-      notes: [
-        ['shader.uniforms.uTime', 'Añadimos un uniform a la lista, con el formato de siempre: un objeto con `value`.'],
-        ['uniform float uTime;', 'Y lo **declaramos** en el shader, igual que con un `ShaderMaterial`.'],
-      ],
-    }),
-    H3('5b · Usarlo en el ángulo'),
-    codeBlock({
-      title: 'main.js',
-      lang: 'glsl',
-      code: `
-float angle = (position.y + uTime) * 0.9;`,
-      notes: [['float angle', 'Sumamos el tiempo a la altura: cada segundo, todo el patrón de giro «sube» un poco. El resultado es una torsión que avanza.']],
-    }),
-    H3('5c · El problema: ¿cómo actualizo `uTime`?'),
-    P('Si lo dejamos así, `uTime` valdrá siempre 0, porque **no tenemos forma de llegar a él desde el `tick`**: el objeto `shader` solo existe dentro del hook, y los materiales de Three.js no tienen una propiedad `material.uniforms` como el `ShaderMaterial`. Sin acceso, no hay animación.'),
-    H3('5d · La solución: un objeto compartido'),
-    P('Creamos **fuera** del hook un objeto con nuestro uniform, y dentro del hook lo **enchufamos** a `shader.uniforms`. Como JavaScript pasa los objetos por referencia, ambos nombres apuntan **al mismo objeto `{ value }`**: cuando el `tick` cambia su `.value`, el shader lo ve.'),
-    codeBlock({
-      title: 'main.js',
-      lang: 'js',
-      code: `
+    /* 8 ------------------------------------------------------------------ */
+    {
+      t: 'Animar: uTime y customUniforms',
+      body: () => [
+        miniLab(TWIST, {
+          title: 'La torsión, animada',
+          caption: 'El ángulo ahora es `(position.y + uTime) * 0.9`. Cada frame, `uTime` sube y el patrón de giro «viaja».',
+          aspect: '16 / 9',
+        }),
+        P('Problema: el objeto `shader` **solo existe dentro del hook**, y los materiales estándar no tienen `material.uniforms`. ¿Cómo actualiza el `tick` un uniform al que no llega? Con un objeto compartido:'),
+        codeBlock({
+          title: 'main.js', lang: 'js',
+          code: `
 const customUniforms = {
     uTime: { value: 0 }
 }
@@ -380,43 +314,76 @@ const customUniforms = {
 material.onBeforeCompile = (shader) =>
 {
     shader.uniforms.uTime = customUniforms.uTime
-
-    // ... los replace de antes
+    // ... y en <common>:  uniform float uTime;
 }
 
-// ---- más abajo, en el tick ----
 const tick = () =>
 {
-    const elapsedTime = clock.getElapsedTime()
-
-    // Update material
-    customUniforms.uTime.value = elapsedTime
-
-    // ...
+    customUniforms.uTime.value = clock.getElapsedTime()
 }`,
-      notes: [
-        ['const customUniforms', 'Un objeto normal, **declarado fuera** de cualquier función para que el `tick` también lo vea.'],
-        ['uTime: { value: 0 }', 'El uniform, con su `{ value }`.'],
-        ['shader.uniforms.uTime = customUniforms.uTime', '**No** copiamos el número, enchufamos **el mismo objeto**. Por eso lo que cambie el `tick` llega al shader.'],
-        ['clock.getElapsedTime()', 'El reloj que ya conoces: segundos desde que empezó la página.'],
-        ['customUniforms.uTime.value = elapsedTime', 'Cada frame actualizamos el valor. ¡Esta es la animación!'],
+          notes: [
+            ['const customUniforms', '**Fuera** del hook, donde el `tick` también lo ve.'],
+            ['shader.uniforms.uTime = customUniforms.uTime', 'No copiamos el número: enchufamos **el mismo objeto** `{ value }`. JavaScript pasa objetos por referencia.'],
+            ['customUniforms.uTime.value', 'El tick cambia `value`… y el shader lo ve, porque es el mismo objeto.'],
+          ],
+        }),
       ],
-    }),
-    eq(`t = 0 s → angle(y=1) = (1 + 0) × 0.9 = 0.90 rad\nt = 2 s → angle(y=1) = (1 + 2) × 0.9 = 2.70 rad\nt = 4 s → angle(y=1) = (1 + 4) × 0.9 = 4.50 rad`),
-    tryIt(7),
+      more: () => [
+        P('No olvides declararlo en el shader: `uniform float uTime;` dentro del reemplazo de `common` (antes de la función). Sin esa línea, la GPU dirá `\'uTime\' : undeclared identifier`. Ejemplo numérico: a los 2 s, un vértice con `y = 1` gira `(1 + 2) × 0.9 = 2.7 rad`.'),
+      ],
+      check: {
+        type: 'mc',
+        q: '¿Por qué funciona `shader.uniforms.uTime = customUniforms.uTime` para animar?',
+        options: [
+          'Porque copia el valor actual de uTime al shader',
+          'Porque ambos nombres apuntan al **mismo objeto** `{ value }`: lo que cambie el tick, lo ve el shader',
+          'Porque obliga a recompilar el shader cada frame',
+        ],
+        answer: 1,
+        why: 'Es una referencia compartida, no una copia. El shader se compila una vez; el `value` del objeto cambia cada frame y la GPU lo recibe como uniform.',
+      },
+    },
 
-    /* ------------------------------------------------------------------ */
-    H2('Paso 6 · Arreglar la sombra'),
-    P('Mira otra vez el suelo y la pared del laboratorio: la columna se retuerce, pero su **sombra no**. Para entender por qué hay que recordar cómo se calculan las sombras (lección de [Sombras](#/sombras)).'),
-    callout('analogy', 'La foto de la luz', [
-      P('Para saber qué está en sombra, Three.js hace primero **una foto de la escena desde la luz**, pero no una foto normal: solo guarda **a qué distancia** está cada cosa (un *mapa de profundidad*). Luego, al pintar, comprueba cada píxel contra esa foto: «¿hay algo más cerca de la luz que yo?».'),
-    ]),
-    P('La clave: para hacer esa foto, Three.js **cambia todos los materiales por un `MeshDepthMaterial`**, que solo sabe dibujar profundidad. Nuestro `onBeforeCompile` está en el `MeshStandardMaterial`, así que ese material de profundidad **no sabe nada de la torsión**: dibuja la columna recta, y la sombra sale recta.'),
-    P('La solución: decirle a Three.js que use **nuestro** material de profundidad en esta malla, con la propiedad `customDepthMaterial`, y retorcerlo igual que al principal:'),
-    codeBlock({
-      title: 'main.js',
-      lang: 'js',
-      code: `
+    /* 9 ------------------------------------------------------------------ */
+    {
+      t: 'La sombra no se entera',
+      body: () => [
+        miniLab(TWIST, {
+          title: 'Columna retorcida, sombra recta',
+          caption: 'Mira el suelo y la pared: la columna se retuerce pero **su sombra sigue recta**.',
+          aspect: '16 / 9',
+        }),
+        callout('analogy', 'La foto de la luz', [
+          P('Para calcular sombras, Three.js hace primero una «foto» de la escena **desde la luz**, que solo guarda distancias (un mapa de profundidad). Y para esa foto **sustituye todos los materiales por un `MeshDepthMaterial`**… que no sabe nada de nuestra torsión. Dibuja la columna recta → sombra recta.'),
+        ]),
+      ],
+      check: {
+        type: 'mc',
+        q: '¿Por qué la sombra no se retuerce, si el material ya tiene el hook?',
+        options: [
+          'Porque las sombras se calculan en el fragment shader',
+          'Porque el mapa de sombras se dibuja con **otro material** (`MeshDepthMaterial`), que no lleva nuestro hook',
+          'Porque el mapa de sombras tiene poca resolución',
+        ],
+        answer: 1,
+        why: 'Nuestro `onBeforeCompile` vive en el `MeshStandardMaterial`. La «foto de profundidad» se hace con un material distinto que dibuja la geometría sin torsión.',
+      },
+    },
+
+    /* 10 ----------------------------------------------------------------- */
+    {
+      t: 'Arreglarla: customDepthMaterial',
+      body: () => [
+        miniLab({ ...TWIST, depth: true }, {
+          title: 'Sombra arreglada',
+          caption: 'Activa y desactiva la casilla para comparar la sombra del suelo y de la pared.',
+          aspect: '16 / 9',
+          compare: { label: 'customDepthMaterial con la torsión', initial: true, on: { ...TWIST, depth: true }, off: TWIST },
+        }),
+        P('La solución: darle a la malla **nuestro propio material de profundidad** y retorcerlo exactamente igual:'),
+        codeBlock({
+          title: 'main.js', lang: 'js',
+          code: `
 const depthMaterial = new THREE.MeshDepthMaterial({
     depthPacking: THREE.RGBADepthPacking
 })
@@ -425,80 +392,68 @@ mesh.customDepthMaterial = depthMaterial
 
 depthMaterial.onBeforeCompile = (shader) =>
 {
-    shader.uniforms.uTime = customUniforms.uTime
-
-    shader.vertexShader = shader.vertexShader.replace(
-        '#include <common>',
-        \`
-            #include <common>
-
-            uniform float uTime;
-
-            mat2 get2dRotateMatrix(float _angle)
-            {
-                return mat2(cos(_angle), - sin(_angle), sin(_angle), cos(_angle));
-            }
-        \`
-    )
-
-    shader.vertexShader = shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        \`
-            #include <begin_vertex>
-
-            float angle = (position.y + uTime) * 0.9;
-            mat2 rotateMatrix = get2dRotateMatrix(angle);
-
-            transformed.xz = rotateMatrix * transformed.xz;
-        \`
-    )
+    // los MISMOS replace de <common> y <begin_vertex>
 }`,
-      notes: [
-        ['new THREE.MeshDepthMaterial', 'El material que Three.js usa para la «foto de profundidad». Nosotros creamos el nuestro.'],
-        ['depthPacking', 'Es la forma de guardar la profundidad en los canales de color (R, G, B y A) para tener más precisión. Basta con ponerlo como en el curso: `THREE.RGBADepthPacking`.'],
-        ['mesh.customDepthMaterial', 'Le decimos a la malla: «cuando te dibujes en el mapa de sombras, usa este material». (Si el modelo tuviera varias mallas, habría que hacerlo con cada una.)'],
-        ['depthMaterial.onBeforeCompile', 'El mismo truco de siempre, pero en el material de profundidad.'],
-        ["'#include <common>'", 'Mismo uniform y misma función que en el material principal.'],
-        ["'#include <begin_vertex>'", 'Mismo giro de `transformed.xz`. **Tiene que ser idéntico** al del material, si no la sombra no coincidiría con el modelo.'],
+          notes: [
+            ['depthPacking', 'Cómo se guarda la profundidad en los canales RGBA, para más precisión. Se pone tal cual.'],
+            ['mesh.customDepthMaterial', '«Cuando te dibujes en el mapa de sombras, usa este material.»'],
+            ['depthMaterial.onBeforeCompile', 'El mismo truco, con la **misma** torsión: si difieren, modelo y sombra se separan.'],
+          ],
+        }),
+        callout('remember', 'Regla de oro', [P('Todo lo que cambie la **posición** en el material principal debe repetirse en el `depthMaterial`.')]),
       ],
-    }),
-    callout('remember', 'Regla de oro', [P('**Todo lo que cambie la posición** del modelo en el material principal debe repetirse en el `depthMaterial`. Si no, sombras y modelo se separan (como cuando movimos la columna en el paso 3).')]),
-    tryIt(8),
+      check: {
+        type: 'fill',
+        q: 'Completa: ¿en qué propiedad de la **malla** se asigna el material de profundidad?',
+        pre: 'mesh.', post: ' = depthMaterial',
+        answer: 'customDepthMaterial',
+        accept: ['customDepthMaterial'],
+        placeholder: 'propiedad',
+        size: 22,
+        why: 'Es una propiedad de la malla (no del material). Si el modelo tuviera varias mallas, habría que asignarlo en cada una.',
+      },
+    },
 
-    /* ------------------------------------------------------------------ */
-    H2('Paso 7 · Arreglar la luz: las normales'),
-    P('Con la sombra bien, queda otro detalle. Compara en el laboratorio el paso 8 y el paso 10: en el 8 las caras laterales se ven oscuras y la iluminación **no sigue** a la superficie retorcida; en el 10 todo es coherente. ¿Por qué?'),
-    P('Una **normal** es una flecha que sale perpendicular a la superficie en cada vértice. La luz la usa para calcular el brillo: si la normal apunta hacia la luz, el punto se ve claro; si apunta en contra, oscuro. Al retorcer hemos movido los **vértices** (`transformed`), pero **no hemos girado las flechas**. La superficie ha rotado y las normales siguen apuntando a donde apuntaban antes, así que la luz «cree» que la superficie no se ha movido.'),
-    eq(`Un vértice de la cara lateral derecha: normal = (1, 0, 0)\n\nTras rotar la superficie 90° alrededor de y:\n  superficie  →  ahora mira hacia  (0, 0, ±1)\n  normal sin arreglar → sigue siendo (1, 0, 0)   ✘ ¡no coincide!\n  normal arreglada    → pasa a ser  (0, 0, ±1)   ✔`),
-    P('Hay que girar `objectNormal` **con la misma matriz**. Ese vector lo declara el chunk `beginnormal_vertex`. La tentación es hacer exactamente lo mismo que con `begin_vertex`:'),
-    codeBlock({
-      title: 'main.js · la versión que falla',
-      lang: 'js',
-      code: `
-shader.vertexShader = shader.vertexShader.replace(
-    '#include <beginnormal_vertex>',
-    \`
-        #include <beginnormal_vertex>
-
-        float angle = (position.y + uTime) * 0.9;
-        mat2 rotateMatrix = get2dRotateMatrix(angle);
-
-        objectNormal.xz = rotateMatrix * objectNormal.xz;
-    \`
-)`,
-      notes: [
-        ["'#include <beginnormal_vertex>'", 'El chunk que declara `objectNormal`.'],
-        ['float angle', 'Las mismas dos líneas que ya tenemos en `begin_vertex`…'],
-        ['objectNormal.xz', 'Y giramos la normal igual que giramos `transformed`.'],
+    /* 11 ----------------------------------------------------------------- */
+    {
+      t: 'La luz se ve rara: las normales',
+      body: () => [
+        miniLab({ ...TWIST, depth: true, normals: true }, {
+          title: 'Normales: antes y después',
+          caption: 'Desactiva la casilla y mira los laterales: la luz **no sigue** la superficie retorcida. Actívala y la iluminación gira con ella.',
+          aspect: '16 / 9',
+          compare: { label: 'Girar también las normales', initial: false, on: { ...TWIST, depth: true, normals: true }, off: { ...TWIST, depth: true } },
+        }),
+        P('Una **normal** es la flecha perpendicular a la superficie en cada vértice; la luz la usa para decidir el brillo. Hemos girado los vértices (`transformed`) pero **no las flechas** (`objectNormal`): la luz sigue creyendo que la superficie mira a donde miraba antes.'),
+        eq(`cara lateral derecha: normal = (1, 0, 0)\ntras girar 90°:  superficie mira a (0, 0, 1)\n  sin arreglar → normal sigue (1, 0, 0)  ✘\n  arreglada    → normal pasa a (0, 0, 1) ✔`),
       ],
-    }),
-    P('Esto da **un error de compilación**: `\'angle\' : redefinition` y `\'rotateMatrix\' : redefinition`. Compruébalo en el laboratorio. Pasa porque (como vimos) **todos los chunks se fusionan en un solo shader**: `angle` y `rotateMatrix` están declaradas dos veces en el mismo `main()`, y GLSL no deja.'),
-    tryIt(9),
-    P('La solución aprovecha el orden: `beginnormal_vertex` va **antes** que `begin_vertex`. Declaramos `angle` y `rotateMatrix` **solo** en el primero, y en `begin_vertex` simplemente las **usamos**:'),
-    codeBlock({
-      title: 'main.js · la versión que funciona',
-      lang: 'js',
-      code: `
+      check: {
+        type: 'mc',
+        q: 'Tras retorcer los vértices, ¿por qué los laterales se iluminan «como si nada hubiera pasado»?',
+        options: [
+          'Porque la luz no alcanza los vértices movidos',
+          'Porque las normales siguen apuntando a donde apuntaban antes del giro',
+          'Porque falta subir la intensidad de la luz',
+        ],
+        answer: 1,
+        why: 'El brillo se calcula con la normal. Si mueves la superficie pero no giras su normal, la iluminación queda «congelada» en la pose original.',
+      },
+    },
+
+    /* 12 ----------------------------------------------------------------- */
+    {
+      t: 'El error de la redefinición',
+      body: () => [
+        P('Para girar la normal hay que inyectar el giro en `beginnormal_vertex` (el chunk que declara `objectNormal`). La tentación es copiar las **mismas dos líneas** que ya tienes en `begin_vertex`… y falla:'),
+        miniLab({ ...TWIST, depth: true, normals: true, dup: true }, {
+          title: 'Roto a propósito: angle declarado dos veces',
+          caption: 'Error real: `\'angle\' : redefinition`. Todos los chunks acaban **fusionados en un único shader**, así que `angle` y `rotateMatrix` quedan declaradas dos veces dentro del mismo `main()`.',
+          aspect: '16 / 9',
+        }),
+        P('La solución aprovecha el **orden**: `beginnormal_vertex` va *antes* que `begin_vertex`. Declara las variables solo en el primero y en el segundo **úsalas** sin declararlas:'),
+        codeBlock({
+          title: 'main.js · la versión buena', lang: 'js',
+          code: `
 shader.vertexShader = shader.vertexShader.replace(
     '#include <beginnormal_vertex>',
     \`
@@ -519,89 +474,67 @@ shader.vertexShader = shader.vertexShader.replace(
         transformed.xz = rotateMatrix * transformed.xz;
     \`
 )`,
-      notes: [
-        ['#include <beginnormal_vertex>', 'Primer chunk en ejecutarse: aquí **nacen** `angle` y `rotateMatrix`.'],
-        ['float angle', 'Declaradas una sola vez.'],
-        ['objectNormal.xz', 'Normal girada con la matriz.'],
-        ["'#include <begin_vertex>'", 'Más abajo en `main()` (mira el esquema del orden).'],
-        ['transformed.xz', 'Aquí ya **no** se declara nada: `rotateMatrix` existe de antes y solo se usa.'],
+          notes: [
+            ['float angle', 'Declaradas **una sola vez**, en el chunk que va antes.'],
+            ['objectNormal.xz', 'La normal gira con la misma matriz.'],
+            ['transformed.xz = rotateMatrix', 'Aquí ya no se declara nada: `rotateMatrix` existe de antes.'],
+          ],
+        }),
       ],
-    }),
-    callout('warn', 'Ojo: el depthMaterial es distinto', [
-      P('El `depthMaterial` **no necesita normales** (solo dibuja distancias), y su shader ni siquiera incluye `beginnormal_vertex` (salvo con displacement maps). Por eso, en él, `angle` y `rotateMatrix` se siguen declarando dentro de `begin_vertex`, como en el paso 6.'),
-    ]),
-    tryIt(10),
-
-    /* ------------------------------------------------------------------ */
-    H2('Paso 8 · Ir más lejos'),
-    P('Ya tienes todo el mecanismo. Cambiando solo el ángulo puedes conseguir efectos muy distintos. Una fórmula que mueve la columna como un junco al viento (acuérdate de cambiarla **en el material y en el depthMaterial**):'),
-    codeBlock({
-      title: 'GLSL',
-      lang: 'glsl',
-      code: `
-float angle = (sin(position.y + uTime)) * 0.4;`,
-      notes: [['float angle', '`sin(...)` oscila entre −1 y 1, así que el ángulo va y viene entre −0.4 y 0.4 rad en vez de crecer sin parar. `position.y + uTime` hace que la onda **viaje hacia arriba**.']],
-    }),
-    P('Y otro nivel: en lugar de escribir `0.4` fijo, puedes pasarlo como **otro uniform** (`uTwist`) y controlarlo desde un slider de lil-gui, o con la posición del ratón. Exactamente la misma idea que `uTime`: se añade a `customUniforms`, se enchufa con `shader.uniforms.uTwist = customUniforms.uTwist`, se declara con `uniform float uTwist;` y se actualiza desde JS. Pruébalo en el laboratorio: es el paso 11.'),
-    tryIt(11),
-
-    /* ------------------------------------------------------------------ */
-    H2('Tu turno: escríbelo tú'),
-    P('Ahora viene lo que importa: que lo escribas **tú** sin mirar. Aquí abajo tienes un editor. Empieza con un esqueleto de comentarios con los 5 pasos; ve rellenándolos con lo que has aprendido (si no recuerdas la sintaxis de algún trozo, vuelve a los pasos de arriba). El resultado se ve en la columna al instante y la lista de la derecha te dice qué piezas has puesto.'),
-    callout('tip', 'Sugerencia de método', [
-      OL([
-        'Escribe primero solo el gancho y la matriz, **sin animar**. Comprueba que gira.',
-        'Añade `uTime` y la animación.',
-        'Añade el `depthMaterial` (la sombra).',
-        'Por último, las normales.',
-      ]),
-      P('Si algo falla, **lee el mensaje de error**: casi siempre te dice exactamente qué falta.'),
-    ]),
-    challengeLab(),
-    h('details', {}, h('summary', {}, 'Pista 1 · No me compila / nada cambia'),
-      P('Comprueba que el texto que buscas en `replace` es **exactamente** `#include <begin_vertex>` (sin espacios de más ni mayúsculas). Si el texto no se encuentra, `replace` no avisa: simplemente no hace nada. Para comprobar qué tiene el shader, haz `console.log(shader.vertexShader)`.')),
-    h('details', {}, h('summary', {}, 'Pista 2 · `\'uTime\' : undeclared identifier`'),
-      P('Te falta `uniform float uTime;`. Va en el chunk `common`, antes de la función. Y no olvides `shader.uniforms.uTime = customUniforms.uTime`.')),
-    h('details', {}, h('summary', {}, 'Pista 3 · La sombra no se retuerce'),
-      P('Necesitas **tres** cosas: crear `new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking })`, asignarlo con `mesh.customDepthMaterial = depthMaterial` y darle su propio `onBeforeCompile` con el mismo giro.')),
-    h('details', {}, h('summary', {}, 'Pista 4 · `\'angle\' : redefinition`'),
-      P('Declaraste `angle` o `rotateMatrix` en dos chunks del **mismo** shader. Déjalas solo en `beginnormal_vertex` y, en `begin_vertex`, usa únicamente `transformed.xz = rotateMatrix * transformed.xz;`.')),
-    h('details', {}, h('summary', {}, 'Ver la solución completa, explicada línea a línea'),
-      codeBlock({
-        title: 'Solución',
-        lang: 'js',
-        code: SOLUTION_CODE,
-        notes: [
-          ['material.onBeforeCompile', 'El gancho en el material principal.'],
-          ['shader.uniforms.uTime = customUniforms.uTime', 'Enchufamos **el mismo objeto** que actualiza el tick. (En tu proyecto, `customUniforms` lo creas tú fuera, como en el paso 5.)'],
-          ["'#include <common>'", 'Chunk que va antes de `main()`: añadimos el uniform y la función.'],
-          ['uniform float uTime;', 'El uniform, declarado.'],
-          ['mat2 get2dRotateMatrix', 'La función que devuelve la matriz de giro.'],
-          ["'#include <beginnormal_vertex>'", 'Las normales: este chunk va **antes** que `begin_vertex`.'],
-          ['float angle', '`angle` y `rotateMatrix` se declaran **una sola vez**, aquí.'],
-          ['objectNormal.xz', 'Giramos la normal con la misma matriz.'],
-          ["'#include <begin_vertex>'", 'La posición: va después.'],
-          ['transformed.xz', 'Giramos `transformed` con la matriz **ya declarada**.'],
-          ['const depthMaterial', 'Material que Three.js usará para el mapa de sombras…'],
-          ['mesh.customDepthMaterial', '…y se lo asignamos a la malla.'],
-          ['depthMaterial.onBeforeCompile', 'Repetimos la torsión en el material de profundidad.'],
-          ['float angle', 'Aquí **sí** se declaran `angle` y `rotateMatrix`: el depthMaterial no tiene el chunk de normales.'],
+      more: () => [
+        P('Ojo: el `depthMaterial` es distinto. No usa normales (solo dibuja distancias) y su shader **no incluye** `beginnormal_vertex`, así que en él `angle` y `rotateMatrix` se siguen declarando dentro de `begin_vertex`, como en la tarjeta 10.'),
+      ],
+      check: {
+        type: 'mc',
+        q: '¿Por qué da `\'angle\' : redefinition` si las dos declaraciones están en chunks distintos?',
+        options: [
+          'Porque `angle` es una palabra reservada de GLSL',
+          'Porque los chunks se fusionan en **un único** `main()`: la variable queda declarada dos veces en el mismo ámbito',
+          'Porque el depthMaterial también la declara',
         ],
-      })),
+        answer: 1,
+        why: 'Los `#include` son solo texto que se pega. Al final hay un único shader, y GLSL no permite dos `float angle` en el mismo bloque.',
+      },
+    },
 
-    H2('Así encaja en tu proyecto del curso'),
-    P('En el proyecto del curso no hay una «columna» sino el modelo de la cabeza cargado con `GLTFLoader`. Esto es solo el esqueleto de **dónde va cada pieza** (adapta los nombres a los de tu `script.js`):'),
-    codeBlock({
-      title: 'script.js (esqueleto)',
-      lang: 'js',
-      code: `
-/**
- * Material
- */
-const mapTexture = textureLoader.load('/models/LeePerrySmith/color.jpg')
-mapTexture.colorSpace = THREE.SRGBColorSpace
-const normalTexture = textureLoader.load('/models/LeePerrySmith/normal.jpg')
+    /* 13 ----------------------------------------------------------------- */
+    {
+      t: 'Ir más lejos: otras fórmulas',
+      body: () => [
+        miniLab({ ...TWIST, depth: true, normals: true, formula: 'sin', slider: true }, {
+          title: 'Seno + uniform uTwist',
+          caption: 'Fórmula `sin(position.y + uTime) * uTwist`: la columna se balancea como un junco. El slider cambia `uTwist` **sin recompilar nada**.',
+          aspect: '16 / 9',
+        }),
+        P('Ya tienes todo el mecanismo; ahora el efecto es solo **la fórmula del ángulo**. `sin(...)` oscila entre −1 y 1, así que el ángulo va y viene en vez de crecer. Y la intensidad puede ser otro uniform (`uTwist`) controlado desde un slider o el ratón, con la misma receta que `uTime`.'),
+      ],
+      more: () => [
+        UL([
+          '`uTwist` se añade igual: a `customUniforms`, a `shader.uniforms`, y `uniform float uTwist;` en `common`.',
+          'Recuerda cambiar la fórmula **también en el depthMaterial**, o la sombra se balanceará distinto que el modelo.',
+          'Otras ideas: `angle` según la distancia al centro (`length(position.xz)`), o ruido con una textura.',
+        ]),
+      ],
+      check: {
+        type: 'fill',
+        q: 'Completa la fórmula del balanceo (oscila en vez de crecer):',
+        pre: 'float angle = ', post: '(position.y + uTime) * uTwist;',
+        answer: 'sin',
+        accept: ['sin'],
+        placeholder: 'función',
+        size: 8,
+        why: '`sin` convierte un valor que crece sin parar en una oscilación entre −1 y 1: por eso la columna va y viene.',
+      },
+    },
 
+    /* 14 ----------------------------------------------------------------- */
+    {
+      t: 'Así encaja en tu proyecto',
+      body: () => [
+        P('En el proyecto del curso no hay una columna: hay la cabeza de Lee Perry-Smith cargada con `GLTFLoader`. Las piezas son las mismas; esto es **dónde va cada una** en tu `script.js`:'),
+        codeBlock({
+          title: 'script.js (esqueleto)', lang: 'js',
+          code: `
 const material = new THREE.MeshStandardMaterial({
     map: mapTexture,
     normalMap: normalTexture
@@ -618,133 +551,87 @@ const customUniforms = {
 material.onBeforeCompile = (shader) =>
 {
     shader.uniforms.uTime = customUniforms.uTime
-    // replace('#include <common>', ...)
-    // replace('#include <beginnormal_vertex>', ...)
-    // replace('#include <begin_vertex>', ...)
+    // replace <common>  +  <beginnormal_vertex>  +  <begin_vertex>
 }
 
 depthMaterial.onBeforeCompile = (shader) =>
 {
     shader.uniforms.uTime = customUniforms.uTime
-    // replace('#include <common>', ...)
-    // replace('#include <begin_vertex>', ...)
+    // replace <common>  +  <begin_vertex>
 }
 
-/**
- * Model
- */
 gltfLoader.load('/models/LeePerrySmith/LeePerrySmith.glb', (gltf) =>
 {
     const mesh = gltf.scene.children[0]
-    mesh.rotation.y = Math.PI * 0.5
     mesh.material = material
     mesh.customDepthMaterial = depthMaterial
     scene.add(mesh)
 })
 
-/**
- * Animate
- */
 const tick = () =>
 {
-    const elapsedTime = clock.getElapsedTime()
-
-    // Update material
-    customUniforms.uTime.value = elapsedTime
-
-    // ...
+    customUniforms.uTime.value = clock.getElapsedTime()
 }`,
-      notes: [
-        ['const material', 'El material con sus texturas normales (mapa de color y mapa de normales). **No** es un ShaderMaterial: es el de siempre.'],
-        ['const depthMaterial', 'El material de profundidad para las sombras.'],
-        ['const customUniforms', 'Fuera de los hooks y de los callbacks, para que el `tick` lo vea.'],
-        ['material.onBeforeCompile', 'Hook del material principal: tres `replace` (`common`, `beginnormal_vertex`, `begin_vertex`).'],
-        ['depthMaterial.onBeforeCompile', 'Hook del depthMaterial: solo dos (`common`, `begin_vertex`).'],
-        ['mesh.material = material', 'Sustituimos el material de la malla cargada…'],
-        ['mesh.customDepthMaterial', '…y le damos su material de profundidad.'],
-        ['customUniforms.uTime.value', 'El `tick` actualiza el uniform compartido en cada frame.'],
+          notes: [
+            ['const material', 'El material normal del curso, con sus texturas. No es un ShaderMaterial.'],
+            ['material.onBeforeCompile', 'Tres replace: `common`, `beginnormal_vertex`, `begin_vertex`.'],
+            ['depthMaterial.onBeforeCompile', 'Solo dos: `common` y `begin_vertex` (sin normales).'],
+            ['mesh.customDepthMaterial', 'Dentro del callback del loader, cuando la malla ya existe.'],
+            ['customUniforms.uTime.value', 'El tick alimenta el uniform compartido.'],
+          ],
+        }),
       ],
-    }),
+      more: () => [
+        table(['Síntoma', 'Causa', 'Arreglo'], [
+          ['No cambia nada', 'El texto del `replace` no existe (errata) y no avisa', '`console.log(shader.vertexShader)`'],
+          ['Pantalla negra / objeto invisible', 'Error de compilación de la GPU', 'Mira la consola (F12)'],
+          ['`\'transformed\' : undeclared`', 'Quitaste `#include <begin_vertex>`', 'Devuélvelo'],
+          ['`\'angle\' : redefinition`', 'Declarada en dos chunks', 'Solo en `beginnormal_vertex`'],
+          ['`\'uTime\' : undeclared`', 'Falta `uniform float uTime;`', 'En `common`'],
+          ['No se anima', 'Falta enchufar `customUniforms` o actualizar `value` en el tick', 'Tarjeta 8'],
+          ['Sombra recta', 'Falta `customDepthMaterial` + su hook', 'Tarjeta 10'],
+          ['Luz rara', 'No giraste `objectNormal`', 'Tarjetas 11–12'],
+        ]),
+      ],
+      check: {
+        type: 'order',
+        q: 'Ordena el flujo completo del efecto, de la causa al resultado:',
+        lines: [
+          'onBeforeCompile recibe el shader como texto',
+          'replace inyecta tu código tras los #include',
+          'la GPU compila el shader modificado una vez',
+          'cada frame, el tick actualiza customUniforms.uTime.value',
+        ],
+        why: 'Compilar pasa una sola vez; lo único que cambia cada frame es el valor del uniform.',
+      },
+    },
 
-    H2('Si algo falla'),
-    table(['Síntoma', 'Causa probable', 'Arreglo'], [
-      ['No cambia absolutamente nada', 'El texto que buscas en `replace` no existe (una errata) y `replace` no avisa', 'Revisa el `#include <…>` y haz `console.log(shader.vertexShader)`'],
-      ['El objeto desaparece o la pantalla queda negra', 'Error de compilación en la GPU', 'Mira la consola del navegador, o usa `renderer.debug.onShaderError`'],
-      ['`\'transformed\' : undeclared identifier`', 'Reemplazaste `begin_vertex` por nada', 'Vuelve a incluir `#include <begin_vertex>`'],
-      ['`\'angle\' : redefinition`', 'Declaraste `angle`/`rotateMatrix` en dos chunks', 'Decláralas solo en `beginnormal_vertex`'],
-      ['`\'uTime\' : undeclared identifier`', 'Falta `uniform float uTime;`', 'Ponlo en el chunk `common`'],
-      ['No se anima (el ángulo nunca cambia)', 'Falta `shader.uniforms.uTime = customUniforms.uTime` o no actualizas el valor en el `tick`', 'Enchufa el objeto y actualiza `customUniforms.uTime.value`'],
-      ['El modelo se retuerce pero su sombra no', 'Falta el `customDepthMaterial` o su `onBeforeCompile`', 'Paso 6'],
-      ['La sombra se retuerce pero la luz se ve rara', 'No giraste `objectNormal`', 'Paso 7'],
-      ['Dos materiales distintos comparten shader por error', 'Three.js reutiliza programas con el mismo `onBeforeCompile`', 'Dales a cada uno `material.customProgramCacheKey = () => \'miClave\'`'],
-    ]),
-
-    H2('Chuleta: dónde escribir cada cosa'),
-    table(['Quiero…', 'Chunk que reemplazo', 'Variable que tengo', 'Ejemplo'], [
-      ['Añadir funciones o uniforms', '`#include <common>`', '—', '`uniform float uTime;`'],
-      ['Mover/deformar el vértice', '`#include <begin_vertex>`', '`transformed` (vec3)', '`transformed.y += 3.0;`'],
-      ['Girar la iluminación al deformar', '`#include <beginnormal_vertex>`', '`objectNormal` (vec3)', '`objectNormal.xz = rotateMatrix * objectNormal.xz;`'],
-      ['Que la sombra siga a la deformación', 'El mismo `begin_vertex` en `customDepthMaterial`', '`transformed`', 'Repetir el cambio en el depthMaterial'],
-      ['Cambiar el color en el fragment shader', '`shader.fragmentShader`: `#include <color_fragment>`', '`diffuseColor` (vec4)', 'Un buen ejercicio para después'],
-    ]),
-    callout('idea', 'La receta de cuatro líneas', [
-      OL([
-        '`material.onBeforeCompile = (shader) => { … }`',
-        "`shader.vertexShader = shader.vertexShader.replace('#include <chunk>', texto nuevo)`: el texto nuevo es el `#include` de vuelta más tu código",
-        'Los uniforms propios: **un objeto `customUniforms` fuera** + `shader.uniforms.uX = customUniforms.uX` + `uniform …;` en `common`',
-        'Si deformas la posición: **repítelo en `customDepthMaterial`** (sombra) y, si hace falta, **en `objectNormal`** (luz).',
-      ]),
-    ]),
-
-    quiz([
-      {
-        q: '¿Cuándo llama Three.js a `material.onBeforeCompile`?',
-        options: ['En cada frame', 'Una vez, justo antes de compilar el shader del material', 'Cuando el ratón se mueve', 'Cuando la cámara cambia'],
-        answer: 1,
-        why: 'Solo cuando se va a compilar el material. Por eso, para animar, usamos un uniform que sí se actualiza cada frame.',
-      },
-      {
-        q: 'Reemplazas `#include <begin_vertex>` por una cadena vacía. ¿Qué ocurre?',
-        options: ['Nada: el chunk era opcional', 'Error de compilación: `transformed` deja de existir y `project_vertex` lo necesita', 'El objeto se vuelve invisible pero compila', 'Three.js restaura el chunk'],
-        answer: 1,
-        why: '`begin_vertex` declara `transformed` y `project_vertex` lo usa. Sin esa declaración, la GPU dice `undeclared identifier`.',
-      },
-      {
-        q: '¿Dónde pones la función `get2dRotateMatrix` para poder usarla en cualquier punto de `main()`?',
-        options: ['Dentro de `begin_vertex`', 'En el chunk `common`, que va antes de `main`', 'En `project_vertex`', 'En el fragment shader'],
-        answer: 1,
-        why: 'Una función GLSL debe estar declarada antes de usarse y no puede estar dentro de `main`. `common` está justo antes.',
-      },
-      {
-        q: '¿Por qué el ángulo es `position.y * 0.9` (y no un número fijo) para retorcer?',
-        options: ['Porque así es más rápido', 'Porque cada vértice debe girar un ángulo proporcional a su altura; con un ángulo fijo el modelo solo rotaría', 'Porque `position.y` es el tiempo', 'Porque `0.9` es una constante de la GPU'],
-        answer: 1,
-        why: 'Distinto ángulo según la altura = torsión. Un ángulo igual para todos sería una rotación rígida.',
-      },
-      {
-        q: 'Quieres animar el ángulo con el tiempo. ¿Cómo haces que el `tick` pueda actualizar `uTime`?',
-        options: ['`material.uniforms.uTime.value = t` (como en un ShaderMaterial)', 'Creando un objeto `customUniforms` fuera del hook y enchufándolo con `shader.uniforms.uTime = customUniforms.uTime`', 'Reasignando `onBeforeCompile` en cada frame', 'Con `shader.needsUpdate`'],
-        answer: 1,
-        why: 'Los materiales estándar no exponen `uniforms`. Compartes un mismo objeto `{ value }` entre el tick y el shader.',
-      },
-      {
-        q: 'La columna se retuerce, pero su sombra en el suelo sigue recta. ¿Qué te falta?',
-        options: ['Más luces', 'Un `customDepthMaterial` con el mismo `onBeforeCompile` de torsión', 'Subir la resolución del mapa de sombras', 'Rotar la sombra desde JavaScript'],
-        answer: 1,
-        why: 'El mapa de sombras se genera con un `MeshDepthMaterial`, que no tiene tu torsión. Hay que darle uno propio.',
-      },
-      {
-        q: 'Al girar `objectNormal` en `beginnormal_vertex` con las mismas dos líneas que en `begin_vertex` obtienes `\'angle\' : redefinition`. ¿Por qué?',
-        options: ['Porque `angle` es una palabra reservada', 'Porque todos los chunks forman un único shader y `angle` queda declarada dos veces en `main()`', 'Porque falta el uniform', 'Porque `objectNormal` es de solo lectura'],
-        answer: 1,
-        why: 'Hay que declarar `angle` y `rotateMatrix` solo en el primer chunk (`beginnormal_vertex`) y usarlas después.',
-      },
-      {
-        q: '¿Qué chunk va primero dentro de `main()`: `beginnormal_vertex` o `begin_vertex`?',
-        options: ['`begin_vertex`', '`beginnormal_vertex`', 'Da igual, se ordenan solos', 'Ninguno está en `main()`'],
-        answer: 1,
-        why: 'Las normales se calculan antes que la posición, así que `beginnormal_vertex` va antes. Por eso declaras ahí las variables compartidas.',
-      },
-    ]),
-  );
+    /* 15 ----------------------------------------------------------------- */
+    {
+      t: 'Tu turno: escríbelo tú',
+      body: () => [
+        P('Esta es la meta de toda la lección: escribir el efecto **tú, sin mirar**. El editor ejecuta tu código de verdad; la lista detecta qué piezas llevas y los errores que veas son los reales de la GPU.'),
+        callout('tip', 'Método recomendado', [
+          OL([
+            'Gancho + función `mat2` + giro con ángulo fijo. ¿Rota? Bien.',
+            'Ángulo según `position.y`. ¿Se retuerce? Bien.',
+            '`uTime` (customUniforms) para animar.',
+            '`customDepthMaterial` para la sombra.',
+            'Las normales, al final.',
+          ]),
+        ]),
+        challengeLab(),
+        h('details', {}, h('summary', {}, 'Pista 1 · No compila / no cambia nada'),
+          P('Comprueba que buscas exactamente `#include <begin_vertex>` (sin espacios de más). Si `replace` no encuentra el texto, no avisa: no hace nada. Mira el shader con `console.log(shader.vertexShader)`.')),
+        h('details', {}, h('summary', {}, 'Pista 2 · `\'uTime\' : undeclared identifier`'),
+          P('Falta `uniform float uTime;` en el chunk `common`. Y no olvides `shader.uniforms.uTime = customUniforms.uTime`.')),
+        h('details', {}, h('summary', {}, 'Pista 3 · La sombra no se retuerce'),
+          P('Tres cosas: `new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking })`, `mesh.customDepthMaterial = depthMaterial`, y su propio `onBeforeCompile` con el mismo giro.')),
+        h('details', {}, h('summary', {}, 'Pista 4 · `\'angle\' : redefinition`'),
+          P('La declaraste en dos chunks. Déjala solo en `beginnormal_vertex`; en `begin_vertex`, usa `transformed.xz = rotateMatrix * transformed.xz;` a secas.')),
+        h('details', {}, h('summary', {}, 'Ver la solución completa'),
+          codeBlock({ title: 'Solución', lang: 'js', code: SOLUTION_CODE, notesOpen: false, notes: [] })),
+      ],
+    },
+  ];
 }

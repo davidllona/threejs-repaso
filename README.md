@@ -17,7 +17,20 @@ No es el curso ni lo sustituye: es mi cuaderno de estudio. Repasa, con demos que
 
 Colores que se repiten en toda la web: cian = geometría, rosa = material, ámbar = luz, violeta = shader. Ejes: X rojo, Y verde, Z azul.
 
-El progreso (lecciones marcadas como leídas) se guarda en el `localStorage` de tu navegador.
+## Formato: tarjetas cortas
+
+Cada lección es una serie de **tarjetas** de 1–2 minutos: una sola idea, primero algo visual (demo, diagrama o código corto) y unas pocas frases. Casi todas acaban con una pregunta de uno de estos tipos:
+
+- **Test** de opción múltiple.
+- **Predice y mira**: respondes antes de tocar la demo y luego lo compruebas.
+- **Completa el hueco** en una línea de código.
+- **Ordena las líneas** de un fragmento.
+
+La explicación más profunda queda plegada en **«Entender más»**, para abrirla solo cuando la quieras. La última tarjeta de cada lección es un **repaso** que vuelve a sacar las preguntas que fallaste o te saltaste. La barra segmentada de arriba marca en verde los aciertos y en rojo los fallos, y se puede tocar para saltar a cualquier tarjeta. También funcionan las flechas ← → del teclado.
+
+Las tarjetas están en `js/lessons/*.js` (cada archivo exporta un array) y el motor que las pinta es `js/cards.js`. La *Chuleta de código* sigue siendo una página de consulta normal.
+
+El progreso (aciertos por tarjeta y lecciones completadas) se guarda en el `localStorage` de tu navegador.
 
 ## Móvil y tablet
 
@@ -67,31 +80,37 @@ El archivo `.nojekyll` evita que GitHub Pages procese los archivos con Jekyll. L
 index.html            Página única; carga el importmap de Three.js y js/main.js
 css/styles.css        Todo el estilo (tema oscuro, código, demos, laboratorios) y la parte responsive (al final del archivo)
 vendor/three/         Three.js r177 copiado en local (sin CDN) + OrbitControls, RoomEnvironment…
-js/main.js            Router por hash (#/modified), menú lateral y progreso
-js/progress.js        Progreso guardado en localStorage
+js/main.js            Router por hash (#/modified/3 = lección y tarjeta), menú lateral y progreso
+js/cards.js           Motor de tarjetas: barra segmentada, preguntas (test, predecir, hueco, ordenar) y repaso
+js/progress.js        Progreso guardado en localStorage (lecciones y resultado de cada tarjeta)
 js/stage.js           createStage(): escena + cámara + renderer para una demo, con limpieza al cambiar de lección
 js/ui.js              Piezas para escribir lecciones: P, H2, codeBlock, demo, quiz, table, callout…
 js/lessons/index.js   Lista de lecciones (orden, título, grupo)
-js/lessons/NN-*.js    Una lección por archivo
+js/lessons/NN-*.js    Una lección por archivo; cada una exporta su array de tarjetas
 js/lib/modified-lab.js  Motor del laboratorio: compila shaders de verdad y traduce los errores de la GPU
 js/lib/modified-ui.js   Explorador de chunks, laboratorio guiado y ejercicio de «Modified materials»
 ```
 
 ## Cómo añadir una lección nueva
 
-1. Crea `js/lessons/19-mi-leccion.js` con una función por defecto que reciba el contenedor:
+1. Crea `js/lessons/19-mi-leccion.js` exportando un array de tarjetas:
 
    ```js
-   import { P, H2, callout, codeBlock, demo, quiz } from '../ui.js';
+   import { P, codeBlock, demo } from '../ui.js';
 
-   export default function render(root) {
-     root.append(
-       P('Texto con **negrita** y `código`.'),
-       H2('Un apartado'),
-       codeBlock({ title: 'ejemplo.js', lang: 'js', code: 'const a = 1', notes: [['const a', 'Declara una constante.']] }),
-     );
+   export default function cards() {
+     return [
+       {
+         t: 'Título corto de la tarjeta',
+         body: () => [ /* primero lo visual: demo(), figure(), codeBlock()… */ P('Dos o tres frases.') ],
+         more: () => [ P('Lo que va plegado en «Entender más».') ],          // opcional
+         check: { type: 'mc', q: '¿Pregunta?', options: ['A', 'B'], answer: 1, why: 'Por qué.' }, // opcional
+       },
+     ];
    }
    ```
+
+   Tipos de `check`: `mc` (test), `predict` (igual que `mc`, para responder antes de tocar la demo), `fill` (`pre`, `post`, `answer`, `accept`) y `order` (`lines` en el orden correcto; se barajan solas). La tarjeta de repaso la añade el motor.
 
 2. Regístrala en `js/lessons/index.js`, dentro del grupo que toque:
 
@@ -101,7 +120,7 @@ js/lib/modified-ui.js   Explorador de chunks, laboratorio guiado y ejercicio de 
 
 3. Recarga: aparece en el menú y en la ruta `#/mi-leccion`.
 
-`demo({ title, aspect, caption, setup })` crea una demo con canvas, panel de controles y limpieza automática; mira `js/lessons/01-escena.js` como ejemplo sencillo y `js/lessons/18-modified.js` como el más completo.
+`demo({ title, aspect, caption, setup })` crea una demo con canvas, panel de controles y limpieza automática; mira `js/lessons/15-variables.js` como ejemplo con los cuatro tipos de pregunta y `js/lessons/18-modified.js` como el más completo.
 
 ## Versión de Three.js
 

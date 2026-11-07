@@ -1,4 +1,4 @@
-import { h, md, P, H2, H3, UL, callout, codeBlock, liveCode, controlPanel, demo, table, quiz, eq } from '../ui.js';
+import { h, md, P, UL, callout, codeBlock, liveCode, controlPanel, demo, table, eq, figure } from '../ui.js';
 import { canvas2d } from '../stage.js';
 
 /* ---------- Explorador de swizzling (solo DOM) ---------- */
@@ -71,7 +71,7 @@ function functionGraph() {
   return demo({
     title: 'Funciones de GLSL en una gráfica',
     aspect: '4 / 3',
-    caption: 'La gráfica muestra qué valor devuelve la función para cada `x` entre 0 y 1. La franja de abajo es **exactamente lo que pintaría un fragment shader** con `gl_FragColor = vec4(vec3(valor), 1.0);` donde `x` es la coordenada horizontal (`vUv.x`): 0 = negro, 1 = blanco.',
+    caption: 'La franja de abajo es **exactamente lo que pintaría un fragment shader** con `gl_FragColor = vec4(vec3(valor), 1.0);` donde `x` es `vUv.x`: 0 = negro, 1 = blanco.',
     setup({ stageEl, panel }) {
       const st = { fn: 'smoothstep', a: 0.3, b: 0.7, n: 8, hx: null };
       let ui;
@@ -98,7 +98,6 @@ function functionGraph() {
         for (let i = 0; i <= S; i++) { const x = i / S; const y = fn(x); i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)); }
         ctx.stroke(); ctx.restore();
 
-        // franja de color resultante
         const sy = m.t + gh + 30, sh = 26;
         for (let px = 0; px < gw; px++) {
           const v = Math.round(clamp01(fn(px / gw)) * 255);
@@ -116,7 +115,7 @@ function functionGraph() {
       };
       const api = canvas2d(stageEl, draw);
       api.canvas.style.cursor = 'crosshair';
-      api.canvas.style.touchAction = 'pan-y';   // desliza de lado sobre la gráfica; en vertical la página sigue desplazándose
+      api.canvas.style.touchAction = 'pan-y';
       const coarse = window.matchMedia?.('(pointer: coarse)').matches;
       const hint = coarse ? 'Toca o desliza el dedo sobre la gráfica.' : 'Mueve el cursor sobre la gráfica.';
       const hover = (e) => {
@@ -155,100 +154,152 @@ void main()
   });
 }
 
-export default function render(root) {
-  root.append(
-    P('**GLSL** (OpenGL Shading Language) es el lenguaje en el que se escriben los shaders. No te asustes: se parece mucho a JavaScript/C, tiene pocas reglas y las que tiene son muy estrictas. En esta lección aprendes todo lo necesario para leer y escribir los shaders del curso.'),
+const COMPILE_SVG = `
+<svg viewBox="0 0 760 210" role="img" aria-label="El shader viaja como texto desde JavaScript y la GPU lo compila">
+  <defs><marker id="gA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#97a0b4"/></marker></defs>
+  <rect x="10" y="40" width="190" height="96" rx="12" fill="#242833" stroke="#373d4d"/>
+  <text x="105" y="72" text-anchor="middle" fill="#fff" font-size="15" font-weight="650">main.js</text>
+  <text x="105" y="96" text-anchor="middle" fill="#97a0b4" font-size="12.5">lo ejecuta la CPU</text>
+  <text x="105" y="120" text-anchor="middle" fill="#a493ff" font-size="12" font-family="JetBrains Mono, monospace">\`void main() {…}\`</text>
+  <path d="M204 88 H286" stroke="#97a0b4" stroke-width="2.2" marker-end="url(#gA)"/>
+  <text x="245" y="78" text-anchor="middle" fill="#97a0b4" font-size="12">texto</text>
+  <rect x="292" y="40" width="190" height="96" rx="12" fill="#a493ff1c" stroke="#a493ff"/>
+  <text x="387" y="72" text-anchor="middle" fill="#a493ff" font-size="15" font-weight="650">GPU: compila</text>
+  <text x="387" y="96" text-anchor="middle" fill="#c9cedb" font-size="12.5">al cargar la página</text>
+  <text x="387" y="118" text-anchor="middle" fill="#c9cedb" font-size="12.5">revisa tipos y ;</text>
+  <path d="M486 70 L566 44" stroke="#4ade80" stroke-width="2.2" marker-end="url(#gA)"/>
+  <path d="M486 106 L566 150" stroke="#f87171" stroke-width="2.2" marker-end="url(#gA)"/>
+  <rect x="572" y="14" width="178" height="58" rx="12" fill="#4ade801a" stroke="#4ade80"/>
+  <text x="661" y="40" text-anchor="middle" fill="#4ade80" font-size="14" font-weight="650">✔ píxeles</text>
+  <text x="661" y="60" text-anchor="middle" fill="#97a0b4" font-size="12">miles de veces a la vez</text>
+  <rect x="572" y="120" width="178" height="62" rx="12" fill="#f871711a" stroke="#f87171"/>
+  <text x="661" y="146" text-anchor="middle" fill="#f87171" font-size="14" font-weight="650">✘ error</text>
+  <text x="661" y="166" text-anchor="middle" fill="#97a0b4" font-size="12">en la consola, con la línea</text>
+</svg>`;
 
-    callout('analogy', 'Un idioma que habla la GPU', [
-      P('Tu JavaScript lo ejecuta el navegador. Los shaders los ejecuta la **tarjeta gráfica**, que habla otro idioma. Por eso se escriben aparte (en un *string* de texto que Three.js manda a la GPU para que lo **compile**). Si hay un error, no lo verás en tu editor: lo verás en la consola del navegador cuando se intente compilar.'),
-    ]),
+export default function cards() {
+  return [
 
-    H2('Reglas básicas'),
-    UL([
-      'Cada instrucción acaba en **`;`**. Si te lo olvidas, no compila.',
-      'Todo tiene un **tipo** y hay que escribirlo siempre (`float`, `vec3`…). No existe `let` ni `const x =`.',
-      'Siempre hay una función **`void main()`**: es el punto de entrada, lo que ejecuta la GPU (una vez por vértice o por píxel, según el shader).',
-      'Los números decimales **deben llevar el punto**: `1.0`, no `1`. Esta es la regla que más errores causa (siguiente sección).',
-      'No hay `console.log`. Para «ver» un valor, lo conviertes en **color** (truco de depuración).',
-      'Los comentarios son iguales que en JS: `//` y `/* */`.',
-    ]),
+    /* 1 ------------------------------------------------------------------ */
+    {
+      t: 'GLSL: un idioma estricto',
+      body: () => [
+        figure(h('div', { html: COMPILE_SVG })),
+        P('Tu JavaScript lo ejecuta el navegador; los shaders los ejecuta la **tarjeta gráfica**. Se escriben como **texto** que Three.js manda a la GPU para que lo **compile**.'),
+        P('Las reglas, en corto:'),
+        UL([
+          'Cada instrucción acaba en **`;`**.',
+          'Todo lleva su **tipo** (`float`, `vec3`…): no existe `let`.',
+          'Siempre hay un **`void main()`**: lo que ejecuta la GPU, una vez por vértice o por píxel.',
+          'Los decimales **siempre con punto**: `1.0`, no `1`.',
+          'No hay `console.log`: para «ver» un valor, lo pintas como color.',
+        ]),
+      ],
+      check: {
+        type: 'mc',
+        q: 'Escribes un error en un shader. ¿Dónde lo ves?',
+        options: ['En tu editor, subrayado en rojo', 'En la consola del navegador, cuando la GPU intenta compilarlo', 'En ningún sitio: GLSL no da errores'],
+        answer: 1,
+        why: 'El shader es texto hasta que la GPU lo compila al cargar la página. El error aparece entonces, en la consola, con el número de línea.',
+      },
+    },
 
-    H2('Tipos de datos'),
-    table(['Tipo', 'Qué guarda', 'Ejemplo'], [
-      ['`float`', 'Un número con decimales', '`float strength = 0.5;`'],
-      ['`int`', 'Un entero', '`int count = 3;`'],
-      ['`bool`', 'Verdadero o falso', '`bool visible = true;`'],
-      ['`vec2`', '2 floats (una posición 2D, un uv…)', '`vec2 uv = vec2(0.25, 0.75);`'],
-      ['`vec3`', '3 floats (una posición 3D, un **color RGB**, una normal…)', '`vec3 color = vec3(1.0, 0.5, 0.0);`'],
-      ['`vec4`', '4 floats (posición con w, color con alfa…)', '`vec4 c = vec4(1.0, 0.5, 0.0, 1.0);`'],
-      ['`mat2`, `mat3`, `mat4`', 'Matrices (cuadradas) de 2×2, 3×3, 4×4', '`mat2 m = mat2(1.0, 0.0, 0.0, 1.0);`'],
-      ['`sampler2D`', 'Una textura que se puede «muestrear» (leer)', '`uniform sampler2D uTexture;`'],
-    ]),
-
-    H3('La regla del punto decimal'),
-    P('GLSL **no convierte** entre `int` y `float` por ti. Mezclarlos es un error de compilación:'),
-    codeBlock({
-      title: 'tipos.glsl',
-      lang: 'glsl',
-      code: `
+    /* 2 ------------------------------------------------------------------ */
+    {
+      t: 'La regla del punto decimal',
+      body: () => [
+        P('GLSL **no convierte** entre `int` y `float` por ti. Es el error de compilación más común del curso:'),
+        codeBlock({
+          title: 'tipos.glsl',
+          lang: 'glsl',
+          code: `
 float a = 1.0;        // ✔ correcto
 float b = 1;          // ✘ ERROR: 1 es un int
 float c = a * 2;      // ✘ ERROR: float * int
 float d = a * 2.0;    // ✔ correcto
 int e = 3;
-float f = float(e);   // ✔ conversión explícita con float(...)`,
-      notes: [
-        ['float a', 'El `.0` hace que el número sea un `float`.'],
-        ['float b', '`1` sin punto es un `int`. No puedes guardarlo directamente en un `float`.'],
-        ['float c', 'Un `float` multiplicado por un `int` tampoco está permitido. Escribe siempre `2.0`.'],
-        ['float f', 'Si de verdad tienes un `int`, conviértelo con `float(e)`.'],
+float f = float(e);   // ✔ conversión explícita`,
+          notes: [
+            ['float b', '`1` sin punto es un `int`: no cabe directamente en un `float`.'],
+            ['float c', 'Mezclar float con int tampoco. Escribe siempre `2.0`.'],
+            ['float f', 'Si de verdad tienes un int, conviértelo con `float(e)`.'],
+          ],
+        }),
+        callout('warn', 'Error típico', [P("`cannot convert from 'const int' to 'highp float'` = busca un número **sin punto**.")]),
       ],
-    }),
-    callout('warn', 'Error típico', [P("Si el compilador te dice algo como `cannot convert from 'const int' to 'highp float'`, busca un número **sin punto**. En los shaders del curso verás siempre `0.0`, `1.0`, `2.0`.")]),
+      more: () => [
+        table(['Tipo', 'Qué guarda', 'Ejemplo'], [
+          ['`float`', 'Un número con decimales', '`float strength = 0.5;`'],
+          ['`int` / `bool`', 'Entero / verdadero-falso', '`int count = 3;`'],
+          ['`vec2`', '2 floats (un uv…)', '`vec2 uv = vec2(0.25, 0.75);`'],
+          ['`vec3`', '3 floats (posición, **color RGB**, normal…)', '`vec3 color = vec3(1.0, 0.5, 0.0);`'],
+          ['`vec4`', '4 floats (posición con w, color con alfa)', '`vec4 c = vec4(1.0, 0.5, 0.0, 1.0);`'],
+          ['`mat2/3/4`', 'Matrices cuadradas', '`mat2 m = mat2(1.0, 0.0, 0.0, 1.0);`'],
+          ['`sampler2D`', 'Una textura que se puede leer', '`uniform sampler2D uTexture;`'],
+        ]),
+      ],
+      check: {
+        type: 'mc',
+        q: '¿Qué falla en `float strength = 1;`?',
+        options: ['Falta el `;`', 'El `1` es un `int` y no se convierte solo: debe ser `1.0`', 'No se puede usar `float` en un shader'],
+        answer: 1,
+        why: 'GLSL no hace conversiones implícitas. `1.0` o `float(1)`.',
+      },
+    },
 
-    H2('Vectores: la estrella de GLSL'),
-    P('Un `vec3` es **un paquete de 3 floats**. Sirve igual para una posición (x, y, z) que para un color (r, g, b): la GPU no sabe lo que significa, tú decides. Se crean con un *constructor* y se acceden por letras:'),
-    codeBlock({
-      title: 'vectores.glsl',
-      lang: 'glsl',
-      code: `
+    /* 3 ------------------------------------------------------------------ */
+    {
+      t: 'Vectores y swizzling',
+      body: () => [
+        swizzleExplorer(),
+        P('Un `vec3` es un **paquete de 3 floats**: igual sirve para una posición (x, y, z) que para un color (r, g, b) — la GPU no sabe lo que significa. Con el punto puedes coger componentes en el orden que quieras y repetirlos: eso es el **swizzling**.'),
+      ],
+      more: () => [
+        codeBlock({
+          title: 'vectores.glsl',
+          lang: 'glsl',
+          code: `
 vec3 position = vec3(1.0, 2.0, 3.0);
-
-float a = position.x;        // 1.0
-float b = position.y;        // 2.0
+float a = position.x;              // 1.0
 
 vec3 color = vec3(0.2, 0.6, 1.0);
-float red = color.r;         // 0.2  (r = x)
+float red = color.r;               // 0.2  (r = x)
 
-vec3 gray = vec3(0.5);       // (0.5, 0.5, 0.5): un solo valor se repite
-vec4 withAlpha = vec4(color, 1.0);   // (0.2, 0.6, 1.0, 1.0)
-vec2 flat = position.xy;     // (1.0, 2.0)  ← swizzle`,
-      notes: [
-        ['vec3 position', 'Constructor con tres números: x = 1, y = 2, z = 3.'],
-        ['position.x', 'Se accede a cada componente con un punto y una letra.'],
-        ['color.r', '`x y z w`, `r g b a` y `s t p q` son **nombres distintos para los mismos huecos**: usa el juego que tenga sentido (xyz para posiciones, rgb para colores, st para texturas).'],
-        ['vec3(0.5)', 'Si le das un solo número, lo repite en todos los componentes. Muy cómodo para grises: `vec3(0.5)` = gris medio.'],
-        ['vec4(color, 1.0)', 'Puedes **componer** vectores: un `vec3` más un `float` forman un `vec4`.'],
-        ['position.xy', '**Swizzling**: coger varios componentes a la vez y formar un vector nuevo. ¡Lo vas a ver en todos los shaders!'],
+vec3 gray = vec3(0.5);             // (0.5, 0.5, 0.5)
+vec4 withAlpha = vec4(color, 1.0); // componer vectores
+vec2 flat = position.xy;           // (1.0, 2.0)  ← swizzle`,
+          notes: [
+            ['color.r', '`xyzw`, `rgba` y `stpq` son **nombres distintos para los mismos huecos**: usa el juego que tenga sentido.'],
+            ['vec3(0.5)', 'Un solo número se repite en todos los componentes: gris medio.'],
+            ['vec4(color, 1.0)', 'Un `vec3` + un `float` componen un `vec4`.'],
+          ],
+        }),
       ],
-    }),
+      check: {
+        type: 'mc',
+        q: 'Si `vec3 c = vec3(0.2, 0.6, 1.0);`, ¿qué vale `c.bg`?',
+        options: ['`vec2(1.0, 0.6)`', '`vec2(0.6, 1.0)`', 'Es un error'],
+        answer: 0,
+        why: '`b` es el tercer componente (1.0) y `g` el segundo (0.6): el swizzle respeta el orden de tus letras. Compruébalo arriba con `v.bg`… o `v.zy`.',
+      },
+    },
 
-    H3('Swizzling: reordenar y repetir componentes'),
-    P('Con el punto puedes escribir **varias letras**, en el orden que quieras y repitiendo las que quieras. El resultado es un vector del tamaño de las letras que hayas puesto:'),
-    eq(`vec4 v = vec4(1.0, 0.5, 0.25, 0.0);\n\nv.xy    → vec2(1.0, 0.5)\nv.zyx   → vec3(0.25, 0.5, 1.0)      (dado la vuelta)\nv.xxyy  → vec4(1.0, 1.0, 0.5, 0.5)  (repetidos)\nv.w     → 0.0                       (float)`),
-    swizzleExplorer(),
-
-    H3('Aritmética con vectores'),
-    P('Las operaciones `+ − * /` entre vectores del mismo tamaño se hacen **componente a componente**. Y un vector con un `float` aplica el número a todos los componentes:'),
-    eq(`vec3(1.0, 2.0, 3.0) + vec3(10.0, 20.0, 30.0)  =  vec3(11.0, 22.0, 33.0)\nvec3(1.0, 2.0, 3.0) * vec3(2.0, 2.0, 0.5)    =  vec3(2.0, 4.0, 1.5)\nvec3(1.0, 2.0, 3.0) * 2.0                    =  vec3(2.0, 4.0, 6.0)`),
-    callout('remember', 'Excepción importante', [P('Con **matrices** el `*` no es componente a componente: es una multiplicación de matrices (`mat2 * vec2` rota un punto, por ejemplo). Eso lo verás con números en la lección de matrices.')]),
-
-    H2('Funciones propias'),
-    P('Puedes crear tus propias funciones. Se declara el tipo que devuelve, el nombre y los parámetros **con su tipo**. Deben estar **definidas antes** de usarse:'),
-    codeBlock({
-      title: 'funciones.glsl',
-      lang: 'glsl',
-      code: `
+    /* 4 ------------------------------------------------------------------ */
+    {
+      t: 'Operar con vectores',
+      body: () => [
+        P('Entre vectores del mismo tamaño, `+ − * /` van **componente a componente**. Un vector con un `float` aplica el número a todos:'),
+        eq(`vec3(1.0, 2.0, 3.0) + vec3(10.0, 20.0, 30.0)  =  vec3(11.0, 22.0, 33.0)
+vec3(1.0, 2.0, 3.0) * vec3(2.0, 2.0, 0.5)    =  vec3(2.0, 4.0, 1.5)
+vec3(1.0, 2.0, 3.0) * 2.0                    =  vec3(2.0, 4.0, 6.0)`),
+        callout('remember', 'Excepción importante', [P('Con **matrices** el `*` no es componente a componente: `mat2 * vec2` es multiplicación de matrices (rota un punto, por ejemplo). Lo verás con números en la lección de matrices.')]),
+      ],
+      more: () => [
+        P('También puedes crear tus propias funciones — tipo devuelto, nombre y parámetros tipados, definidas **antes** de usarse:'),
+        codeBlock({
+          title: 'funciones.glsl',
+          lang: 'glsl',
+          code: `
 float remap(float value, float inMin, float inMax)
 {
     return (value - inMin) / (inMax - inMin);
@@ -259,100 +310,85 @@ void main()
     float t = remap(5.0, 0.0, 10.0);   // 0.5
     gl_FragColor = vec4(vec3(t), 1.0);
 }`,
-      notes: [
-        ['float remap', 'Tipo devuelto (`float`), nombre y parámetros tipados. Convierte un valor de un rango a otro de 0 a 1.'],
-        ['return', 'Devuelve el resultado, como en JS.'],
-        ['void main', '`main` es especial: no devuelve nada (`void`). Su «resultado» lo escribe en variables especiales como `gl_FragColor`.'],
-        ['remap(5.0', 'Llamada a la función. 5 está en la mitad de 0..10 → 0.5.'],
+          notes: [
+            ['float remap', 'Convierte un valor de un rango a 0…1. 5 está en la mitad de 0..10 → 0.5.'],
+          ],
+        }),
       ],
-    }),
+      check: {
+        type: 'mc',
+        q: '`vec3(1.0, 2.0, 3.0) * 2.0` es…',
+        options: ['`vec3(2.0, 4.0, 6.0)`', '`12.0`', 'Un error de tipos'],
+        answer: 0,
+        why: 'Un vector por un float multiplica cada componente.',
+      },
+    },
 
-    H2('Funciones que vienen incluidas'),
-    P('GLSL trae muchas funciones matemáticas. Estas son las que usarás el 95 % del tiempo (todas funcionan también con vectores, componente a componente):'),
-    table(['Función', 'Qué hace', 'Ejemplo con números'], [
-      ['`sin(x)` `cos(x)`', 'Onda suave entre −1 y 1', '`sin(0.0)` = 0 · `sin(1.5708)` ≈ 1'],
-      ['`abs(x)`', 'Quita el signo', '`abs(-0.3)` = 0.3'],
-      ['`floor(x)` `fract(x)`', 'Parte entera / parte decimal', '`floor(2.7)` = 2 · `fract(2.7)` = 0.7'],
-      ['`min(a, b)` `max(a, b)`', 'El menor / el mayor', '`max(0.2, 0.9)` = 0.9'],
-      ['`clamp(x, lo, hi)`', 'Limita x al rango', '`clamp(1.4, 0.0, 1.0)` = 1.0'],
-      ['`mix(a, b, t)`', 'Mezcla de a a b: `a·(1−t) + b·t`', '`mix(0.0, 10.0, 0.25)` = 2.5'],
-      ['`step(edge, x)`', '0 si x < edge, 1 si no (un corte duro)', '`step(0.5, 0.3)` = 0 · `step(0.5, 0.8)` = 1'],
-      ['`smoothstep(e0, e1, x)`', 'Transición suave de 0 a 1 entre e0 y e1', '`smoothstep(0.0, 1.0, 0.5)` = 0.5'],
-      ['`length(v)`', 'Longitud del vector', '`length(vec2(3.0, 4.0))` = 5.0'],
-      ['`distance(a, b)`', 'Distancia entre dos puntos', '`distance(vec2(0.0), vec2(3.0, 4.0))` = 5.0'],
-      ['`dot(a, b)`', 'Producto escalar (cuánto «apuntan» igual)', '`dot(vec3(1,0,0), vec3(1,0,0))` = 1'],
-      ['`normalize(v)`', 'Mismo sentido pero longitud 1', '`normalize(vec2(3.0, 4.0))` = (0.6, 0.8)'],
-      ['`pow(x, n)`', 'x elevado a n', '`pow(0.5, 2.0)` = 0.25'],
-    ]),
+    /* 5 ------------------------------------------------------------------ */
+    {
+      t: 'Las funciones que usarás siempre',
+      body: () => [
+        functionGraph(),
+        P('Con `mix`, `step`, `smoothstep`, `fract` y `sin` se construye casi cualquier patrón. `mix(a, b, t)` es la estrella: con `t = 0` da `a`, con `t = 1` da `b`, y entre medias, mezcla — vale para números **y colores**:'),
+        eq(`mix(vec3(1,0,0), vec3(0,0,1), 0.0)  = rojo
+mix(vec3(1,0,0), vec3(0,0,1), 0.5)  = morado
+mix(vec3(1,0,0), vec3(0,0,1), 1.0)  = azul`),
+      ],
+      more: () => [
+        table(['Función', 'Qué hace', 'Con números'], [
+          ['`sin(x)` `cos(x)`', 'Onda suave entre −1 y 1', '`sin(1.5708)` ≈ 1'],
+          ['`abs(x)`', 'Quita el signo', '`abs(-0.3)` = 0.3'],
+          ['`floor(x)` `fract(x)`', 'Parte entera / decimal', '`fract(2.7)` = 0.7'],
+          ['`clamp(x, lo, hi)`', 'Limita x al rango', '`clamp(1.4, 0.0, 1.0)` = 1.0'],
+          ['`mix(a, b, t)`', 'Mezcla: `a·(1−t) + b·t`', '`mix(0.0, 10.0, 0.25)` = 2.5'],
+          ['`step(edge, x)`', '0 si x < edge, 1 si no', '`step(0.5, 0.8)` = 1'],
+          ['`smoothstep(e0, e1, x)`', 'De 0 a 1, suave, entre e0 y e1', '`smoothstep(0.0, 1.0, 0.5)` = 0.5'],
+          ['`length(v)` / `distance(a, b)`', 'Longitud / distancia', '`length(vec2(3.0, 4.0))` = 5.0'],
+          ['`dot(a, b)`', 'Cuánto «apuntan» igual', '`dot(vec3(1,0,0), vec3(1,0,0))` = 1'],
+          ['`normalize(v)`', 'Mismo sentido, longitud 1', '`normalize(vec2(3.0, 4.0))` = (0.6, 0.8)'],
+          ['`pow(x, n)`', 'x elevado a n', '`pow(0.5, 2.0)` = 0.25'],
+        ]),
+      ],
+      check: {
+        type: 'mc',
+        q: '¿Cuánto vale `mix(2.0, 10.0, 0.25)`?',
+        options: ['2.5', '4.0', '8.0'],
+        answer: 1,
+        why: '2·(1 − 0.25) + 10·0.25 = 1.5 + 2.5 = 4.0: el 25 % del camino entre 2 y 10.',
+      },
+    },
 
-    H3('`mix`: la función que más vas a usar'),
-    P('`mix(a, b, t)` es una mezcla. Con `t = 0` te da `a`; con `t = 1` te da `b`; con `t = 0.25`, un 75 % de `a` y un 25 % de `b`. Sirve para números **y para colores**:'),
-    eq(`mix(vec3(1,0,0), vec3(0,0,1), 0.0)  = vec3(1.0, 0.0, 0.0)   rojo\nmix(vec3(1,0,0), vec3(0,0,1), 0.5)  = vec3(0.5, 0.0, 0.5)   morado\nmix(vec3(1,0,0), vec3(0,0,1), 1.0)  = vec3(0.0, 0.0, 1.0)   azul`),
-    P('Y su compañero habitual es `step`/`smoothstep`: te dan un `t` que **cambia de golpe o suavemente** según un valor. Combínalos y puedes pintar cualquier cosa. Pruébalo aquí:'),
-    functionGraph(),
-
-    H2('`if` y bucles: con cuidado'),
-    P('Existen (`if`, `else`, `for`), pero la GPU ejecuta miles de «ayudantes» a la vez y le encanta que **todos hagan lo mismo**. Un `if` puede hacer que unos hagan una cosa y otros otra, y eso la ralentiza. Por eso en shaders se prefiere sustituir condiciones por matemáticas:'),
-    codeBlock({
-      title: 'sin-if.glsl',
-      lang: 'glsl',
-      code: `
+    /* 6 ------------------------------------------------------------------ */
+    {
+      t: 'Sin «if» y sin console.log',
+      body: () => [
+        P('`if` y `for` existen, pero la GPU quiere que sus miles de «ayudantes» hagan **todos lo mismo**: las bifurcaciones la frenan. En shaders, las condiciones se sustituyen por matemáticas:'),
+        codeBlock({
+          title: 'sin-if.glsl',
+          lang: 'glsl',
+          code: `
 // Con if (más lento, más largo):
 float value;
 if (x > 0.5) { value = 1.0; } else { value = 0.0; }
 
 // Sin if (lo habitual):
 float value = step(0.5, x);`,
-      notes: [
-        ['if (x', 'Funciona, pero mete bifurcaciones en el código de la GPU.'],
-        ['step(0.5', '`step` hace lo mismo sin ramas: devuelve 1.0 si x ≥ 0.5 y 0.0 si no.'],
+          notes: [
+            ['step(0.5', '`step` hace lo mismo sin ramas: 1.0 si x ≥ 0.5, 0.0 si no.'],
+          ],
+        }),
+        P('Y para depurar, **pinta el valor**: un `float` 0…1 → `gl_FragColor = vec4(vec3(value), 1.0)` y lo ves como gris; un `vec2` como el uv → `vec4(uv, 0.0, 1.0)`: rojo = x, verde = y.'),
       ],
-    }),
-
-    H2('Cómo «depurar» sin console.log'),
-    P('Si quieres saber cuánto vale algo, **píntalo**. Si `value` es un `float` entre 0 y 1, haz `gl_FragColor = vec4(vec3(value), 1.0);` y lo verás como un gris. Si es un `vec2` (como el `uv`), haz `vec4(uv, 0.0, 1.0)`: rojo = x, verde = y. Esto lo practicarás en el laboratorio de shaders.'),
-
-    callout('idea', 'Resumen de la lección', [
-      UL([
-        'GLSL es estricto: tipos obligatorios, `;`, y números decimales **siempre con punto**.',
-        '`vec2/3/4` guardan varios floats; accedes con `.xyz`, `.rgb`, `.st` y puedes reordenar (swizzling).',
-        'Operaciones entre vectores = componente a componente.',
-        'Con `mix`, `step`, `smoothstep`, `fract`, `sin`… construyes casi cualquier patrón sin `if`.',
-        'No hay `console.log`: depura convirtiendo valores en colores.',
-      ]),
-    ]),
-
-    quiz([
-      {
-        q: '¿Qué falla en `float strength = 1;`?',
-        options: ['Falta el `;`', 'El `1` es un `int` y no se convierte solo en `float`: debe ser `1.0`', 'No se puede usar `float` en un shader', 'La variable debería llamarse `uStrength`'],
-        answer: 1,
-        why: 'GLSL no hace conversiones implícitas de int a float. Hay que escribir `1.0` o `float(1)`.',
+      check: {
+        type: 'fill',
+        q: '0 a la izquierda de x = 0.5 y 1 a la derecha, sin `if`:',
+        pre: 'float value = ', post: '(0.5, x);',
+        answer: 'step',
+        accept: ['step'],
+        placeholder: 'función',
+        size: 12,
+        why: '`step(edge, x)` devuelve 0 mientras x < edge y 1 cuando x ≥ edge: un corte duro. Para un borde suave, `smoothstep`.',
       },
-      {
-        q: 'Si `vec3 c = vec3(0.2, 0.6, 1.0);`, ¿qué vale `c.bg`?',
-        options: ['`vec2(1.0, 0.6)`', '`vec2(0.6, 1.0)`', '`vec3(1.0, 0.6, 0.2)`', 'Es un error'],
-        answer: 0,
-        why: 'b es el tercer componente (1.0) y g el segundo (0.6). El swizzle respeta el orden en que escribes las letras.',
-      },
-      {
-        q: '¿Cuánto vale `mix(2.0, 10.0, 0.25)`?',
-        options: ['2.5', '4.0', '6.0', '8.0'],
-        answer: 1,
-        why: '2·(1 − 0.25) + 10·0.25 = 1.5 + 2.5 = 4.0. Es decir, el 25 % del camino entre 2 y 10.',
-      },
-      {
-        q: 'Quieres un valor que sea 0 a la izquierda de x = 0.5 y 1 a la derecha, sin usar `if`. ¿Qué escribes?',
-        options: ['`mix(0.0, 1.0, 0.5)`', '`step(0.5, x)`', '`fract(x)`', '`abs(x)`'],
-        answer: 1,
-        why: '`step(edge, x)` devuelve 0 mientras x < edge y 1 cuando x ≥ edge: un corte duro.',
-      },
-      {
-        q: '`vec3(1.0, 2.0, 3.0) * 2.0` es…',
-        options: ['`vec3(2.0, 4.0, 6.0)`', '`vec3(2.0, 2.0, 2.0)`', '`12.0`', 'Un error de tipos'],
-        answer: 0,
-        why: 'Multiplicar un vector por un float multiplica cada componente.',
-      },
-    ]),
-  );
+    },
+  ];
 }

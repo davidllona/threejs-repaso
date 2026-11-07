@@ -1,4 +1,4 @@
-import { P, H2, H3, UL, callout, codeBlock, liveCode, demo, table, quiz, eq } from '../ui.js';
+import { P, UL, callout, codeBlock, liveCode, demo, table, eq } from '../ui.js';
 import { makeGridTexture, THREE as T } from '../stage.js';
 
 // Corazón de 8×8 píxeles para probar magFilter
@@ -26,7 +26,7 @@ function makePixelHeart() {
   return tex;
 }
 
-// Tablero fino para probar minFilter (se ve moiré si no hay mipmaps)
+// Tablero fino para probar minFilter (moiré sin mipmaps)
 function makeChecker(size = 512, cells = 32) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
@@ -42,150 +42,171 @@ function makeChecker(size = 512, cells = 32) {
   return tex;
 }
 
-export default function render(root) {
-  root.append(
-    P('Una textura es **una imagen que se pega sobre un objeto 3D**. Pero un objeto 3D es una superficie curva y una imagen es plana, así que hace falta un «mapa» que diga qué parte de la imagen va en cada parte del objeto. Ese mapa son las **coordenadas UV**.'),
-    callout('analogy', 'El papel de regalo', [
-      P('Piensa en forrar una caja con papel de regalo. Desdoblas la caja y la dejas plana (como una plantilla de cartón); pones el papel debajo; y cada punto de la caja plana «apunta» a un punto del papel. Eso son los UV: **para cada vértice, un par de números (u, v) que dicen «tú coges el color de este punto de la imagen»**. El mismo problema que representar la Tierra (esfera) en un mapa plano.'),
-    ]),
-    H3('Cómo son los UV'),
-    P('Es un sistema de coordenadas dentro de la imagen: **(0, 0)** es la esquina inferior izquierda y **(1, 1)** la superior derecha, sea cual sea el tamaño en píxeles. Cada vértice de la geometría guarda su (u, v) en el atributo `uv`. Entre vértices, la GPU **interpola**: un píxel que está justo a mitad de camino entre un vértice con u = 0 y otro con u = 1 coge u = 0.5. (Esta interpolación aparecerá otra vez con los *varyings* en shaders.)'),
-    eq(`vértice A: uv = (0, 0)   →  esquina inferior izquierda de la imagen\nvértice B: uv = (1, 0)   →  esquina inferior derecha\nvértice C: uv = (0.5, 1) →  mitad del borde superior\n\npíxel entre A y B   →  uv = (0.5, 0)   →  mitad del borde inferior`),
+export default function cards() {
+  return [
 
-    H2('Cargar una textura'),
-    codeBlock({
-      title: 'script.js',
-      code: `
+    /* 1 ------------------------------------------------------------------ */
+    {
+      t: 'UV: el papel de regalo',
+      body: () => [
+        P('Una textura es una **imagen pegada sobre un objeto**. Como el objeto es curvo y la imagen plana, cada vértice guarda un par (u, v) que dice «yo cojo el color de **este** punto de la imagen». Es como forrar una caja: desdoblada en plano, cada zona apunta a su trozo de papel.'),
+        eq(`(0,0) = esquina inferior izquierda     (1,1) = esquina superior derecha\n\nvértice A: uv = (0, 0)\nvértice B: uv = (1, 0)\npíxel a mitad de camino entre A y B → uv = (0.5, 0)   ← la GPU interpola`),
+        P('Entre vértices, la GPU **interpola** los UV automáticamente. Guárdate esa palabra: es lo mismo que harán los *varyings* en el capítulo de shaders.'),
+        codeBlock({
+          title: 'script.js',
+          code: `
 const textureLoader = new THREE.TextureLoader()
 const colorTexture = textureLoader.load('/textures/door/color.jpg')
 colorTexture.colorSpace = THREE.SRGBColorSpace
 
-const material = new THREE.MeshBasicMaterial({ map: colorTexture })
-const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material)`,
-      notes: [
-        ['new THREE.TextureLoader()', 'El cargador de imágenes. Se crea una vez y se reutiliza para todas las texturas.'],
-        ["textureLoader.load('/textures", 'Carga la imagen de forma **asíncrona**: devuelve la textura inmediatamente (vacía) y cuando termina de descargarse se rellena sola. Por eso a veces ves un objeto negro un instante.'],
-        ['colorTexture.colorSpace', 'Muy importante: las texturas que son **color** (lo que ven tus ojos) se marcan como `SRGBColorSpace` para que los colores no salgan lavados. Las texturas que son **datos** (normal, rugosidad, metalness, alpha…) **no** se marcan: son números, no colores.'],
-        ['{ map: colorTexture }', '`map` es la propiedad del material que recibe la textura de color. Cada tipo de dato tiene la suya: `normalMap`, `roughnessMap`, `alphaMap`…'],
+const material = new THREE.MeshBasicMaterial({ map: colorTexture })`,
+          notes: [
+            ['textureLoader.load', '**Asíncrono**: devuelve la textura vacía al instante y la rellena al terminar la descarga.'],
+            ['colorTexture.colorSpace', 'Las texturas de **color** se marcan `SRGBColorSpace` o salen lavadas. Las de **datos** (normal, roughness, alpha…) no se marcan: son números.'],
+            ['{ map: colorTexture }', 'Cada dato tiene su propiedad: `map`, `normalMap`, `roughnessMap`, `alphaMap`…'],
+          ],
+        }),
       ],
-    }),
+      check: {
+        type: 'mc',
+        q: 'Un vértice tiene `uv = (1, 1)`. ¿Qué punto de la imagen le toca?',
+        options: ['La esquina inferior izquierda', 'El centro', 'La esquina superior derecha'],
+        answer: 2,
+        why: 'El sistema UV va de (0,0) abajo-izquierda a (1,1) arriba-derecha, dé igual la resolución de la imagen.',
+      },
+    },
 
-    H2('Mover, repetir y girar la textura'),
-    P('Una vez cargada, puedes transformar **la textura** (no el objeto) con propiedades parecidas a las que ya conoces: `repeat`, `offset`, `rotation`. Prueba, y fíjate sobre todo en lo que pasa con `repeat` mayor que 1 cuando no cambias el modo de repetición:'),
-    demo({
-      title: 'repeat, offset, rotation y wrap',
-      aspect: '16 / 10',
-      setup({ makeStage, panel, side }) {
-        const stage = makeStage({ pos: [1.8, 1.4, 2.6], fov: 45 });
-        const { THREE, scene } = stage;
-        const tex = makeGridTexture({ size: 512, cells: 4 });
-        tex.anisotropy = 4;
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.6, 1.6), new THREE.MeshBasicMaterial({ map: tex }));
-        scene.add(mesh);
-        stage.onTick((dt) => { mesh.rotation.y += dt * 0.15; });
-
-        const code = liveCode({ title: 'script.js', lang: 'js' });
-        const s = { rx: 1, ry: 1, ox: 0, oy: 0, rot: 0, wrap: 'Clamp', center: false };
-        const WRAP = { Clamp: THREE.ClampToEdgeWrapping, Repeat: THREE.RepeatWrapping, Mirrored: THREE.MirroredRepeatWrapping };
-        const WRAPNAME = { Clamp: 'THREE.ClampToEdgeWrapping', Repeat: 'THREE.RepeatWrapping', Mirrored: 'THREE.MirroredRepeatWrapping' };
-        const apply = () => {
-          tex.repeat.set(s.rx, s.ry);
-          tex.offset.set(s.ox, s.oy);
-          tex.rotation = s.rot;
-          tex.center.set(s.center ? 0.5 : 0, s.center ? 0.5 : 0);
-          tex.wrapS = tex.wrapT = WRAP[s.wrap];
-          tex.needsUpdate = true;
-          code.set(`colorTexture.repeat.set(${s.rx.toFixed(1)}, ${s.ry.toFixed(1)})
+    /* 2 ------------------------------------------------------------------ */
+    {
+      t: 'repeat, offset y wrap',
+      body: () => [
+        demo({
+          title: 'repeat, offset, rotation y wrap',
+          aspect: '16 / 10',
+          caption: 'Pon `repeat` en 3: **no se repite**, los bordes se estiran. Es el modo por defecto (`ClampToEdge`). Cambia a `RepeatWrapping` y ahora sí.',
+          setup({ makeStage, panel, side }) {
+            const stage = makeStage({ pos: [1.8, 1.4, 2.6], fov: 45 });
+            const { THREE, scene } = stage;
+            const tex = makeGridTexture({ size: 512, cells: 4 });
+            tex.anisotropy = 4;
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.6, 1.6), new THREE.MeshBasicMaterial({ map: tex }));
+            scene.add(mesh);
+            stage.onTick((dt) => { mesh.rotation.y += dt * 0.15; });
+            const code = liveCode({ title: 'script.js', lang: 'js' });
+            const s = { rx: 1, ry: 1, ox: 0, oy: 0, rot: 0, wrap: 'Clamp', center: false };
+            const WRAP = { Clamp: THREE.ClampToEdgeWrapping, Repeat: THREE.RepeatWrapping, Mirrored: THREE.MirroredRepeatWrapping };
+            const WRAPNAME = { Clamp: 'THREE.ClampToEdgeWrapping', Repeat: 'THREE.RepeatWrapping', Mirrored: 'THREE.MirroredRepeatWrapping' };
+            const apply = () => {
+              tex.repeat.set(s.rx, s.ry);
+              tex.offset.set(s.ox, s.oy);
+              tex.rotation = s.rot;
+              tex.center.set(s.center ? 0.5 : 0, s.center ? 0.5 : 0);
+              tex.wrapS = tex.wrapT = WRAP[s.wrap];
+              tex.needsUpdate = true;
+              code.set(`colorTexture.repeat.set(${s.rx.toFixed(1)}, ${s.ry.toFixed(1)})
 colorTexture.offset.set(${s.ox.toFixed(2)}, ${s.oy.toFixed(2)})
 colorTexture.rotation = ${s.rot.toFixed(2)}${s.center ? '\ncolorTexture.center.set(0.5, 0.5)' : ''}
 colorTexture.wrapS = ${WRAPNAME[s.wrap]}
 colorTexture.wrapT = ${WRAPNAME[s.wrap]}`);
-        };
-        panel([
-          { type: 'range', label: 'repeat.x', min: 0.5, max: 4, step: 0.5, value: 1, onInput: (v) => { s.rx = v; apply(); } },
-          { type: 'range', label: 'repeat.y', min: 0.5, max: 4, step: 0.5, value: 1, onInput: (v) => { s.ry = v; apply(); } },
-          { type: 'range', label: 'offset.x', min: -1, max: 1, step: 0.05, value: 0, onInput: (v) => { s.ox = v; apply(); } },
-          { type: 'range', label: 'offset.y', min: -1, max: 1, step: 0.05, value: 0, onInput: (v) => { s.oy = v; apply(); } },
-          { type: 'range', label: 'rotation (radianes)', min: -3.14, max: 3.14, step: 0.05, value: 0, onInput: (v) => { s.rot = v; apply(); } },
-          { type: 'check', label: 'center = (0.5, 0.5) → gira desde el centro', value: false, onInput: (v) => { s.center = v; apply(); } },
-          { type: 'select', label: 'wrapS / wrapT', options: [['Clamp', 'ClampToEdge (por defecto)'], ['Repeat', 'RepeatWrapping'], ['Mirrored', 'MirroredRepeatWrapping']], value: 'Clamp', onInput: (v) => { s.wrap = v; apply(); } },
-        ]);
-        side.append(code.el);
+            };
+            panel([
+              { type: 'range', label: 'repeat.x', min: 0.5, max: 4, step: 0.5, value: 1, onInput: (v) => { s.rx = v; apply(); } },
+              { type: 'range', label: 'repeat.y', min: 0.5, max: 4, step: 0.5, value: 1, onInput: (v) => { s.ry = v; apply(); } },
+              { type: 'range', label: 'offset.x', min: -1, max: 1, step: 0.05, value: 0, onInput: (v) => { s.ox = v; apply(); } },
+              { type: 'range', label: 'offset.y', min: -1, max: 1, step: 0.05, value: 0, onInput: (v) => { s.oy = v; apply(); } },
+              { type: 'range', label: 'rotation (radianes)', min: -3.14, max: 3.14, step: 0.05, value: 0, onInput: (v) => { s.rot = v; apply(); } },
+              { type: 'check', label: 'center = (0.5, 0.5) → gira desde el centro', value: false, onInput: (v) => { s.center = v; apply(); } },
+              { type: 'select', label: 'wrapS / wrapT', options: [['Clamp', 'ClampToEdge (por defecto)'], ['Repeat', 'RepeatWrapping'], ['Mirrored', 'MirroredRepeatWrapping']], value: 'Clamp', onInput: (v) => { s.wrap = v; apply(); } },
+            ]);
+            side.append(code.el);
+          },
+        }),
+        P('Estas propiedades transforman **la textura**, no el objeto: `repeat` tesela, `offset` desplaza, `rotation` gira (alrededor de la esquina (0,0), salvo que muevas `center`).'),
+      ],
+      check: {
+        type: 'fill',
+        q: '`repeat.set(3, 3)` estira los bordes en vez de repetir. Completa el arreglo:',
+        pre: 'texture.wrapS = texture.wrapT = THREE.', post: '',
+        answer: 'RepeatWrapping',
+        accept: ['RepeatWrapping', 'MirroredRepeatWrapping'],
+        placeholder: 'constante',
+        size: 20,
+        why: 'Por defecto (`ClampToEdgeWrapping`), fuera de [0,1] se repite el último píxel. `RepeatWrapping` tesela (y `MirroredRepeatWrapping` tesela en espejo).',
       },
-      caption: 'Pon `repeat` en 3 y fíjate en que **no se repite**: los bordes se estiran. Es el modo por defecto (`ClampToEdge`): fuera de [0, 1] se repite el último píxel. Cambia a `RepeatWrapping` y ahora sí. La textura gira alrededor de la esquina (0,0) salvo que cambies `center`.',
-    }),
+    },
 
-    H2('Filtros: qué pasa cuando la textura no coincide con la pantalla'),
-    P('Casi nunca un píxel de la textura (un *texel*) ocupa exactamente un píxel de pantalla. Hay dos casos y cada uno tiene su filtro:'),
-    table(['Caso', 'Filtro', 'Opciones habituales'], [
-      ['La textura es **pequeña** y se ve **muy grande** (cada texel ocupa muchos píxeles)', '`magFilter` (magnificación)', '`NearestFilter`: píxeles cuadrados nítidos (aspecto Minecraft). `LinearFilter` (por defecto): se mezclan y se ve borroso.'],
-      ['La textura es **grande** y se ve **muy pequeña o en ángulo** (muchos texels caben en un píxel)', '`minFilter` (minificación)', '`NearestFilter`: moiré y parpadeo. `LinearMipmapLinearFilter` (por defecto): suave, usa **mipmaps** (la misma imagen en versiones cada vez más pequeñas, precalculadas).'],
-    ]),
-    demo({
-      title: 'magFilter (izquierda) y minFilter (derecha)',
-      aspect: '16 / 9',
-      caption: 'Izquierda: un corazón de **8×8 píxeles** estirado a toda la cara. Derecha: un tablero fino visto en ángulo rasante; con `Nearest` el fondo se llena de moiré. Los mipmaps los crea Three.js solos (`generateMipmaps = true`) y ocupan un 33 % extra de memoria. Si usas `NearestFilter` como minFilter, desactívalos: `generateMipmaps = false`.',
-      setup({ makeStage, panel }) {
-        const stage = makeStage({ pos: [0, 1.3, 6.4], target: [0, 0, -0.5], fov: 50, orbit: false });
-        const { THREE, scene } = stage;
-        const heart = makePixelHeart();
-        const checker = makeChecker();
-        checker.repeat.set(8, 8);
-        checker.anisotropy = 1;
-        const left = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ map: heart }));
-        left.position.set(-2.4, 0.9, 0);
-        scene.add(left);
-        const floor = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshBasicMaterial({ map: checker }));
-        floor.rotation.x = -Math.PI / 2 + 0.05;
-        floor.position.set(1.8, -0.3, -1.5);
-        scene.add(floor);
-
-        const MAG = { Nearest: THREE.NearestFilter, Linear: THREE.LinearFilter };
-        const MIN = { Nearest: THREE.NearestFilter, Linear: THREE.LinearFilter, Mipmap: THREE.LinearMipmapLinearFilter };
-        panel([
-          { type: 'select', label: 'heart.magFilter', options: [['Linear', 'LinearFilter (por defecto)'], ['Nearest', 'NearestFilter']], value: 'Linear', onInput: (v) => { heart.magFilter = MAG[v]; heart.needsUpdate = true; } },
-          { type: 'select', label: 'checker.minFilter', options: [['Mipmap', 'LinearMipmapLinearFilter (por defecto)'], ['Linear', 'LinearFilter'], ['Nearest', 'NearestFilter']], value: 'Mipmap', onInput: (v) => { checker.minFilter = MIN[v]; checker.needsUpdate = true; } },
-          { type: 'note', html: 'Truco de pixel art: `magFilter = THREE.NearestFilter` + imágenes pequeñas = estética retro **y** menos memoria.' },
-        ]);
+    /* 3 ------------------------------------------------------------------ */
+    {
+      t: 'Filtros: nítido o borroso',
+      body: () => [
+        demo({
+          title: 'magFilter (izquierda) y minFilter (derecha)',
+          aspect: '16 / 9',
+          caption: 'Izquierda: un corazón de **8×8 píxeles** ampliado. Derecha: un tablero fino en ángulo rasante; con `Nearest` se llena de moiré.',
+          setup({ makeStage, panel }) {
+            const stage = makeStage({ pos: [0, 1.3, 6.4], target: [0, 0, -0.5], fov: 50, orbit: false });
+            const { THREE, scene } = stage;
+            const heart = makePixelHeart();
+            const checker = makeChecker();
+            checker.repeat.set(8, 8);
+            checker.anisotropy = 1;
+            const left = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ map: heart }));
+            left.position.set(-2.4, 0.9, 0);
+            scene.add(left);
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshBasicMaterial({ map: checker }));
+            floor.rotation.x = -Math.PI / 2 + 0.05;
+            floor.position.set(1.8, -0.3, -1.5);
+            scene.add(floor);
+            const MAG = { Nearest: THREE.NearestFilter, Linear: THREE.LinearFilter };
+            const MIN = { Nearest: THREE.NearestFilter, Linear: THREE.LinearFilter, Mipmap: THREE.LinearMipmapLinearFilter };
+            panel([
+              { type: 'select', label: 'heart.magFilter', options: [['Linear', 'LinearFilter (por defecto)'], ['Nearest', 'NearestFilter']], value: 'Linear', onInput: (v) => { heart.magFilter = MAG[v]; heart.needsUpdate = true; } },
+              { type: 'select', label: 'checker.minFilter', options: [['Mipmap', 'LinearMipmapLinear (por defecto)'], ['Linear', 'LinearFilter'], ['Nearest', 'NearestFilter']], value: 'Mipmap', onInput: (v) => { checker.minFilter = MIN[v]; checker.needsUpdate = true; } },
+              { type: 'note', html: 'Pixel art: `magFilter = THREE.NearestFilter` + imagen pequeña = estética retro y menos memoria.' },
+            ]);
+          },
+        }),
+        table(['Caso', 'Filtro', 'Qué elegir'], [
+          ['Textura pequeña vista **grande**', '`magFilter`', '`Nearest` = píxeles nítidos (Minecraft) · `Linear` (defecto) = suave/borroso'],
+          ['Textura grande vista **pequeña o en ángulo**', '`minFilter`', '`LinearMipmapLinear` (defecto) = suave, usa **mipmaps** · `Nearest` = moiré'],
+        ]),
+      ],
+      more: () => [
+        P('Los **mipmaps** son copias de la textura a mitad de tamaño, y mitad de la mitad, etc., precalculadas por Three.js (`generateMipmaps = true`). Cuestan un 33 % extra de memoria. Si tu `minFilter` es `NearestFilter`, no se usan: apágalos con `generateMipmaps = false`. Por los mipmaps las texturas deben medir **potencias de 2** (512, 1024, 2048…): dividir entre 2 sin decimales.'),
+      ],
+      check: {
+        type: 'mc',
+        q: 'Quieres píxeles cuadrados nítidos al ampliar una imagen de 8×8. ¿Qué cambias?',
+        options: ['`minFilter = THREE.LinearFilter`', '`magFilter = THREE.NearestFilter`', '`colorSpace = THREE.SRGBColorSpace`'],
+        answer: 1,
+        why: 'Ampliar = magnificación = `magFilter`. `Nearest` coge el texel más cercano sin mezclar: cuadrados perfectos.',
       },
-    }),
+    },
 
-    H2('Peso y formato (¡dos cosas distintas!)'),
-    P('Hay dos tamaños que importan y casi nadie los distingue: lo que **pesa el archivo** (lo que se descarga) y lo que **ocupa en la GPU** (lo que gasta memoria al usarla). Un JPG de 300 KB puede ocupar mucho más en la GPU, porque la GPU necesita la imagen **descomprimida**: cuatro bytes por píxel (rojo, verde, azul, alfa).'),
-    eq(`memoria GPU ≈ ancho × alto × 4 bytes × 1.33 (mipmaps)\n\n1024 × 1024 → 1 048 576 px × 4 × 1.33 ≈  5.6 MB\n2048 × 2048 →                    ≈ 22.4 MB\n4096 × 4096 →                    ≈ 89.5 MB   ← ¡aunque el JPG pese 1 MB!`),
-    UL([
-      '**Tamaño** de la imagen: potencias de 2 (512, 1024, 2048…) porque los mipmaps necesitan dividir entre 2 sin decimales. Usa el más pequeño que se vea bien.',
-      '**Formato**: `.jpg` pesa menos pero pierde calidad y no tiene transparencia; `.png` conserva calidad y alfa pero pesa más; los formatos comprimidos para GPU (basis / KTX2) son lo mejor para producción.',
-    ]),
-    callout('tip', 'Dónde conseguir texturas', [
-      P('Para practicar: poliigon.com, 3dtextures.me, arroway-textures.ch (todos con packs gratuitos). Suelen traer varios mapas del mismo material: color, alpha, altura, normal, ambient occlusion, metalness y roughness. Cada uno va a una propiedad distinta del material (lo verás en la próxima lección).'),
-    ]),
-
-    quiz([
-      {
-        q: 'Un vértice tiene `uv = (1, 1)`. ¿Qué punto de la imagen le corresponde?',
-        options: ['La esquina inferior izquierda', 'El centro', 'La esquina superior derecha', 'La esquina superior izquierda'],
+    /* 4 ------------------------------------------------------------------ */
+    {
+      t: 'Peso del archivo ≠ memoria de GPU',
+      body: () => [
+        eq(`memoria GPU ≈ ancho × alto × 4 bytes × 1.33 (mipmaps)\n\n1024 × 1024  ≈  5.6 MB\n2048 × 2048  ≈ 22.4 MB\n4096 × 4096  ≈ 89.5 MB   ← ¡aunque el JPG pese 1 MB!`),
+        P('El JPG viaja comprimido, pero la GPU necesita los píxeles **descomprimidos**: 4 bytes por píxel. Un archivo pequeño puede ser una textura carísima. Regla: usa el tamaño más pequeño que se vea bien, en potencias de 2.'),
+        UL([
+          '`.jpg`: pesa poco, pierde calidad, sin transparencia.',
+          '`.png`: sin pérdida y con alfa, pesa más.',
+          'KTX2 / basis: comprimidos **también en GPU**, lo mejor para producción.',
+        ]),
+      ],
+      more: () => [
+        callout('tip', 'Dónde conseguir texturas', [
+          P('poliigon.com, 3dtextures.me y arroway-textures.ch tienen packs gratuitos con todos los mapas del mismo material: color, alpha, altura, normal, ambient occlusion, metalness y roughness. Cada uno va a su propiedad del material: siguiente lección.'),
+        ]),
+      ],
+      check: {
+        type: 'mc',
+        q: 'Una textura 4096×4096 pesa 1 MB en JPG. ¿Cuánta memoria de GPU ocupa aprox.?',
+        options: ['1 MB', 'Unos 8 MB', 'Casi 90 MB'],
         answer: 2,
-        why: '(0,0) es abajo-izquierda y (1,1) arriba-derecha, sea cual sea la resolución de la imagen.',
+        why: '4096 × 4096 × 4 bytes ≈ 67 MB, más ~33 % de mipmaps ≈ 89 MB. El peso del archivo no dice nada de la memoria de GPU.',
       },
-      {
-        q: 'Pones `texture.repeat.set(3, 3)` y los bordes se estiran en vez de repetirse. ¿Qué falta?',
-        options: ['`texture.wrapS = texture.wrapT = THREE.RepeatWrapping`', '`texture.needsUpdate = false`', '`mesh.scale.set(3, 3, 3)`', 'Cambiar el `minFilter`'],
-        answer: 0,
-        why: 'El modo por defecto es `ClampToEdge`: fuera de la imagen repite el último píxel. Para teselar hay que usar `RepeatWrapping` (o `MirroredRepeatWrapping`).',
-      },
-      {
-        q: 'Quieres un aspecto de píxeles cuadrados nítidos al ampliar una imagen pequeña. ¿Qué cambias?',
-        options: ['`magFilter = THREE.NearestFilter`', '`minFilter = THREE.LinearFilter`', '`colorSpace = THREE.SRGBColorSpace`', '`wireframe = true`'],
-        answer: 0,
-        why: '`magFilter` actúa cuando la textura se amplía. `Nearest` coge el texel más cercano sin mezclar, así que los píxeles se ven como cuadrados.',
-      },
-      {
-        q: 'Una textura de 4096 × 4096 pesa 1 MB como JPG. ¿Cuánta memoria de GPU usa aproximadamente?',
-        options: ['1 MB', 'Unos 8 MB', 'Casi 90 MB', 'Depende del color'],
-        answer: 2,
-        why: 'La GPU guarda los píxeles sin comprimir: 4096 × 4096 × 4 bytes ≈ 67 MB, más un 33 % de mipmaps ≈ 89 MB. De ahí la importancia de usar el tamaño más pequeño posible.',
-      },
-    ]),
-  );
+    },
+  ];
 }

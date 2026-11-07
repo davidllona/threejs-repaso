@@ -16,20 +16,8 @@ const tabs = (s) => s.replace(/\t/g, '    ');
 /* ----------------------------------------------------------------------
    Pasos del laboratorio guiado (siguen las secciones de la lección)
    ---------------------------------------------------------------------- */
-export const STEPS = [
-  { t: 'El material normal', cfg: {}, look: 'Este es un `MeshStandardMaterial` tal cual: textura, luz y sombras. Todavía no hemos tocado su shader.' },
-  { t: 'Engancharse: onBeforeCompile', cfg: { hook: true, log: true }, look: '`console.log(shader)` enseña que el gancho recibe un objeto con `vertexShader`, `fragmentShader` y `uniforms` (mira el panel de estado). A la derecha tienes el vertexShader de verdad, lleno de `#include`.' },
-  { t: 'Romper a propósito: reemplazar por nada', cfg: { hook: true, beginMode: 'nothing' }, look: 'El compilador se queja: `transformed` ya no existe. Fíjate en el mensaje real de la GPU y en cómo el dibujo se queda con el último material válido.' },
-  { t: 'Devolver el include', cfg: { hook: true, beginMode: 'include' }, look: 'Reemplazamos `#include <begin_vertex>` por sí mismo: no cambia nada, pero ya tenemos **un sitio donde escribir**.' },
-  { t: 'Mover en y: transformed.y += 3.0', cfg: { hook: true, beginMode: 'include', moveY: true }, look: 'La columna sube 3 unidades… ¡pero su **sombra se queda en el suelo**! (De eso nos ocupamos en el paso 9.)' },
-  { t: 'Torsión con un ángulo fijo', cfg: { hook: true, beginMode: 'include', twist: 'const' }, look: 'Con `angle = 0.3` todos los vértices giran lo mismo: la columna entera rota. La sombra sigue sin enterarse.' },
-  { t: 'Torsión según la altura', cfg: { hook: true, beginMode: 'include', twist: 'height' }, look: 'Ahora el ángulo es `position.y * 0.9`: abajo no gira, arriba gira más. ¡Retorcida! Fíjate en que la luz del lateral sigue como si nada hubiera pasado (normales sin arreglar).' },
-  { t: 'Animar con uTime', cfg: { hook: true, beginMode: 'include', twist: 'height', animate: true }, look: 'Un uniform que cambia cada frame: `(position.y + uTime) * 0.9`. El `uTime` viaja desde el `tick` gracias a `customUniforms`.' },
-  { t: 'Arreglar la sombra: customDepthMaterial', cfg: { hook: true, beginMode: 'include', twist: 'height', animate: true, depth: true }, look: 'La sombra del suelo y de la pared ya se retuerce. Cambia el selector del panel derecho a «del depthMaterial» para ver su shader.' },
-  { t: 'Normales: el error de las dos declaraciones', cfg: { hook: true, beginMode: 'include', twist: 'height', animate: true, depth: true, normals: true, dup: true }, look: 'Error real de la lección: `angle` y `rotateMatrix` quedan declaradas **dos veces** en el mismo shader. Los chunks se fusionan en uno solo.' },
-  { t: 'Normales: arreglado', cfg: { hook: true, beginMode: 'include', twist: 'height', animate: true, depth: true, normals: true }, look: 'Declaradas una sola vez (en `beginnormal_vertex`, que va antes) y usadas en `begin_vertex`. Ahora la iluminación **gira con la superficie**. Compara activando y desactivando «Normales».' },
-  { t: 'Ir más lejos: seno + control con slider', cfg: { hook: true, beginMode: 'include', twist: 'height', animate: true, depth: true, normals: true, formula: 'sin', slider: true }, look: 'Fórmula distinta: `sin(position.y + uTime) * 0.4` — la columna se balancea. Y un segundo uniform, `uTwist`, controlado por el slider sin recompilar nada.' },
-];
+/* (el antiguo laboratorio guiado por pasos se sustituyó por miniLab: un laboratorio
+   pequeño por tarjeta, configurado con el cfg de generateJS) */
 
 /* ----------------------------------------------------------------------
    Pintar el resultado de ejecutar (éxito o errores reales)
@@ -129,105 +117,45 @@ export function chunkExplorer() {
 }
 
 /* ======================================================================
-   2 · Laboratorio guiado
+   2 · miniLab — un laboratorio pequeño y enfocado para cada tarjeta
    ====================================================================== */
-export function guidedLab(ctl) {
-  const edJS = codeEditor({ title: 'Tu código (esto es lo que se ejecuta)', lang: 'js', value: '', height: 470, readOnly: true, autoHeight: true });
-  const edSh = codeEditor({ title: 'vertexShader resultante', lang: 'glsl', value: '', height: 470, readOnly: true, autoHeight: true });
-  const sel = shaderSelect();
-  edSh.head.append(sel);
-  const status = h('div', { class: 'lab-status' }, 'Se compilará al empezar el laboratorio…');
-  const editors = h('div', { class: 'lab-editors' }, edJS.el, edSh.el, status);
-
+export function miniLab(cfg, opts = {}) {
+  const { caption = '', title = 'Laboratorio', aspect = '16 / 10', showCode = false, compare = null, showStatus = true } = opts;
+  let edJS = null;
+  const statusEl = h('div', { class: 'lab-status' }, 'Se compilará al entrar en pantalla…');
   const fig = demo({
-    title: 'Laboratorio de Modified materials',
-    aspect: '5 / 6',
-    caption: 'Cada casilla añade **líneas de código reales**: lo que ves abajo a la izquierda es exactamente lo que se ejecuta, y abajo a la derecha el vertexShader que Three.js compila después (en verde, lo que has añadido tú). Gira la cámara con el ratón.',
+    title, aspect, caption,
     setup({ makeStage, panel }) {
       const stage = makeStage({ pos: [9.5, 4.6, 19], target: [0, 1.4, 0], fov: 36, shadows: true });
       const parts = buildScene(stage);
       const runner = createRunner(stage, parts);
-      let time = 0; let paused = false; let ui; let ui2; let ui3; let ready = false;
-      let cfg = { ...DEFAULT_CFG };
-      let stepIdx = 0;
+      let time = 0; let paused = false;
       stage.onTick((dt) => { if (!paused) time += dt; const u = runner.uniforms; if (u && u.uTime) u.uTime.value = time; });
 
-      const lookEl = h('div', { class: 'ctl-note' });
-      const okEl = h('div', { class: 'ctl-note' });
-      const sync = (n) => {
-        ui2.set('hook', n.hook); ui2.set('log', n.log); ui2.set('begin', n.beginMode); ui2.set('moveY', n.moveY);
-        ui2.set('twist', n.twist); ui2.set('animate', n.animate); ui2.set('depth', n.depth); ui2.set('normals', n.normals);
-        ui2.set('dup', n.dup); ui2.set('formula', n.formula); ui2.set('slider', n.slider);
-      };
-      const updateShader = () => paintShader(edSh, runner, sel.value);
-      const refresh = () => {
-        cfg = normalizeCfg(cfg);
-        sync(cfg);
-        const code = generateJS(cfg);
-        edJS.set(code);
+      const apply = (c) => {
+        const n = normalizeCfg({ ...DEFAULT_CFG, ...c });
+        const code = generateJS(n);
+        if (edJS) edJS.set(code);
         const res = runner.run(code);
-        showResult(status, res);
-        okEl.textContent = res.ok ? '✔ Compila bien' : '✘ Error de compilación: mira el panel de estado (abajo)';
-        okEl.style.color = res.ok ? 'var(--ok)' : 'var(--bad)';
-        updateShader();
-      };
-      const change = (partial) => {
-        if (!ready) return;
-        if ('normals' in partial && !partial.normals) partial.dup = false;
-        if ('formula' in partial) { const v = partial.formula === 'sin' ? 0.4 : 0.9; runner.uniforms.uTwist.value = v; ui2.set('twistVal', v); }
-        cfg = { ...cfg, ...partial };
-        refresh();
-      };
-      const goTo = (n) => {
-        stepIdx = Math.max(0, Math.min(STEPS.length - 1, n));
-        const s = STEPS[stepIdx];
-        cfg = { ...DEFAULT_CFG, ...s.cfg };
-        const v = cfg.formula === 'sin' ? 0.4 : 0.9;
-        runner.uniforms.uTwist.value = v; ui2.set('twistVal', v);
-        ui.set('step', String(stepIdx));
-        lookEl.innerHTML = md(s.look);
-        ui.refs.prev.input.disabled = stepIdx === 0;
-        ui.refs.next.input.disabled = stepIdx === STEPS.length - 1;
-        refresh();
+        showResult(statusEl, res);
       };
 
-      ui = panel([
-        { type: 'select', id: 'step', label: 'Paso', options: STEPS.map((s, i) => [String(i), `${i} · ${s.t}`]), value: '0', onInput: (v) => { if (ready) goTo(+v); } },
-        { type: 'button', id: 'prev', label: '‹ Anterior', onClick: () => goTo(stepIdx - 1) },
-        { type: 'button', id: 'next', label: 'Siguiente ›', primary: true, onClick: () => goTo(stepIdx + 1) },
-      ], { initial: false });
-      ui.el.append(lookEl, okEl);
+      const defs = [];
+      if (compare) defs.push({ type: 'check', id: 'cmp', label: compare.label, value: !!compare.initial, onInput: (v) => apply(v ? compare.on : compare.off) });
+      if (cfg.slider) defs.push({ type: 'range', id: 'twist', label: 'uTwist (la intensidad)', min: 0, max: 2, step: 0.05, value: cfg.formula === 'sin' ? 0.4 : 0.9, onInput: (v) => { runner.uniforms.uTwist.value = v; } });
+      defs.push({ type: 'select', id: 'model', label: 'Modelo', options: Object.entries(MODELS).map(([k, m]) => [k, m.label]), value: 'column', onInput: (v) => parts.setModel(v) });
+      if (cfg.animate || (compare && (compare.on.animate || compare.off.animate))) defs.push({ type: 'check', id: 'pause', label: 'Pausar uTime', value: false, onInput: (v) => { paused = v; } });
+      panel(defs, { initial: false });
 
-      ui2 = panel([
-        { type: 'group', label: 'Cada casilla añade líneas de código' },
-        { type: 'check', id: 'hook', label: 'onBeforeCompile (el gancho)', value: false, onInput: (v) => change({ hook: v }) },
-        { type: 'check', id: 'log', label: 'console.log(shader)', value: false, onInput: (v) => change({ log: v }) },
-        { type: 'select', id: 'begin', label: 'Chunk begin_vertex', options: [['none', 'sin tocar'], ['nothing', 'reemplazar por NADA (¡rompe!)'], ['include', 'reemplazar y devolver el include']], value: 'none', onInput: (v) => change({ beginMode: v }) },
-        { type: 'check', id: 'moveY', label: 'transformed.y += 3.0', value: false, onInput: (v) => change({ moveY: v }) },
-        { type: 'select', id: 'twist', label: 'Giro de transformed.xz', options: [['none', 'ninguno'], ['const', 'ángulo fijo (0.3)'], ['height', 'ángulo según la altura']], value: 'none', onInput: (v) => change({ twist: v }) },
-        { type: 'check', id: 'animate', label: 'Animar con uTime', value: false, onInput: (v) => change({ animate: v }) },
-        { type: 'check', id: 'depth', label: 'Sombra: customDepthMaterial', value: false, onInput: (v) => change({ depth: v }) },
-        { type: 'check', id: 'normals', label: 'Normales: objectNormal.xz', value: false, onInput: (v) => change({ normals: v }) },
-        { type: 'check', id: 'dup', label: '…con angle declarado dos veces (error)', value: false, onInput: (v) => change({ dup: v }) },
-        { type: 'select', id: 'formula', label: 'Fórmula del ángulo', options: [['linear', 'lineal (× 0.9)'], ['sin', 'seno: sin(y + uTime) × 0.4']], value: 'linear', onInput: (v) => change({ formula: v }) },
-        { type: 'check', id: 'slider', label: 'Intensidad con un uniform uTwist', value: false, onInput: (v) => change({ slider: v }) },
-        { type: 'range', id: 'twistVal', label: 'uTwist (slider)', min: 0, max: 2, step: 0.05, value: 0.9, onInput: (v) => { runner.uniforms.uTwist.value = v; } },
-      ], { initial: false });
-
-      ui3 = panel([
-        { type: 'group', label: 'Escena' },
-        { type: 'select', id: 'model', label: 'Modelo', options: Object.entries(MODELS).map(([k, m]) => [k, m.label]), value: 'column', onInput: (v) => { if (ready) parts.setModel(v); } },
-        { type: 'check', id: 'pause', label: 'Pausar uTime', value: false, onInput: (v) => { paused = v; } },
-      ], { initial: false });
-
-      sel.addEventListener('change', updateShader);
-      ready = true;
-      ctl.goTo = goTo;
-      goTo(ctl.pending || 0);
+      apply(compare && compare.initial ? compare.on : cfg);
     },
   });
-  fig.querySelector('.demo-body').after(editors);
-  ctl.fig = fig;
+  if (showCode) {
+    edJS = codeEditor({ title: 'El código que se está ejecutando', lang: 'js', value: '', height: 340, readOnly: true, autoHeight: true });
+    fig.querySelector('.demo-body').after(h('div', { class: 'lab-editors one' }, edJS.el, statusEl));
+  } else if (showStatus) {
+    fig.querySelector('.demo-body').after(h('div', { class: 'lab-editors one' }, statusEl));
+  }
   return fig;
 }
 
