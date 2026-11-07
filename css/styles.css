@@ -739,3 +739,20 @@ details.more p, details.more li { font-size: 17px; line-height: 1.65; }
 .cloud-dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font: 14px/1.4 var(--sans); }
 .cloud-dl dt { color: var(--muted); }
 .cloud-dl dd { margin: 0; overflow-wrap: anywhere; }
+.cloud-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.cloud-tabs button {
+  min-height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--muted);
+  font: 600 14px var(--sans); cursor: pointer;
+}
+.cloud-tabs button.on { background: var(--surface-2); color: var(--text); box-shadow: 0 1px 0 rgb(255 255 255 / .04) inset; }
+.cloud-field { display: grid; gap: 6px; font: 600 13px var(--sans); color: var(--text-soft); }
+.cloud-pass { position: relative; }
+.cloud-pass .cloud-input { padding-right: 84px; }
+.cloud-eye {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%); min-height: 34px; padding: 0 10px;
+  border: 0; border-radius: 8px; background: var(--surface-2); color: var(--text-soft); font: 600 12.5px var(--sans); cursor: pointer;
+}
+.cloud-main { min-height: 46px; font-size: 15px; }
+.cloud-google { background: #fff; border-color: #fff; color: #1f1f1f; }
+.cloud-google:hover { background: #f1f3f4; }
+.cloud-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; }

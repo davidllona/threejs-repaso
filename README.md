@@ -36,21 +36,18 @@ El progreso (aciertos por tarjeta y lecciones completadas) se guarda en el `loca
 
 Si inicias sesión (botón **Guardar mi progreso**, arriba del índice), el progreso se guarda en Firebase y lo ves igual en el móvil, la tablet y el ordenador. Sin sesión, todo sigue funcionando como antes: solo en el `localStorage` de ese navegador.
 
-- Acceso con **Google** o con **correo y contraseña** (Firebase Authentication del proyecto `repasoia`).
+- Acceso con **Google** o con **correo y contraseña** (Firebase Authentication del proyecto `repasoia`): entrar, crear cuenta (con la contraseña repetida), recuperar la contraseña por correo y, ya dentro, cambiarla o cerrar sesión.
 - Los datos van a Firestore, al documento `progreso-threejs/{uid}`, separado del otro cuaderno (`progreso/{uid}`).
 - Al entrar, el progreso de ese navegador **se suma** al de tu cuenta: nunca se pierde nada (un acierto gana a un fallo, y un fallo a una tarjeta solo vista).
 - Todo el código está en `js/cloud.js`. La configuración de Firebase que aparece ahí es pública por diseño: lo que protege los datos son las reglas de Firestore.
 
-Reglas de Firestore necesarias (Firestore → Reglas):
+Reglas de Firestore (Firestore → Reglas). Esta regla sirve para este cuaderno y para cualquier otro: cada usuario solo puede leer y escribir **su** documento (el que se llama como su uid) en cualquier colección:
 
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /progreso/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-    }
-    match /progreso-threejs/{uid} {
+    match /{cuaderno}/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
   }

@@ -46,6 +46,10 @@ const ERRORS = {
   'auth/user-not-found': 'No hay ninguna cuenta con ese correo. Pulsa «Crear cuenta».',
   'auth/invalid-email': 'Ese correo no parece válido.',
   'auth/missing-password': 'Escribe la contraseña.',
+  'auth/missing-email': 'Escribe tu correo.',
+  'auth/user-disabled': 'Esta cuenta está desactivada.',
+  'auth/popup-blocked': 'El navegador ha bloqueado la ventana de Google. Permite las ventanas emergentes y vuelve a probar.',
+  'auth/expired-action-code': 'El enlace ha caducado. Pide otro.',
   'auth/email-already-in-use': 'Ya existe una cuenta con ese correo. Pulsa «Entrar».',
   'auth/weak-password': 'La contraseña necesita al menos 6 caracteres.',
   'auth/too-many-requests': 'Demasiados intentos seguidos. Espera un poco y vuelve a probar.',
@@ -53,7 +57,7 @@ const ERRORS = {
   'auth/unauthorized-domain': 'Este dominio no está autorizado en Firebase (Authentication → Configuración → Dominios autorizados).',
   'auth/operation-not-allowed': 'Ese método de acceso no está habilitado en Firebase.',
   'auth/account-exists-with-different-credential': 'Ese correo ya está registrado con otro método. Entra con el que usaste la primera vez.',
-  'permission-denied': 'Firebase no deja guardar: falta la regla de «progreso-threejs» en Firestore.',
+  'permission-denied': 'Firebase no deja guardar: revisa las reglas de Firestore (cada usuario debe poder escribir en progreso-threejs/{su uid}).',
   'unavailable': 'Sin conexión: se guardará cuando vuelva internet.',
 };
 const QUIET = new Set(['auth/popup-closed-by-user', 'auth/cancelled-popup-request', 'auth/user-cancelled']);
@@ -239,31 +243,100 @@ function openDialog() {
         h('div', { class: 'cloud-row' },
           h('button', { class: 'btn', type: 'button', onClick: () => run(push, 'Guardado.') }, 'Guardar ahora'),
           h('button', { class: 'btn ghost', type: 'button', onClick: () => run(signOut) }, 'Cerrar sesión')),
+        (u.providerData || []).some((p) => p.providerId === 'password') && u.email
+          ? h('button', { class: 'linkish', type: 'button', onClick: () => run(() => resetPassword(u.email), `Te hemos enviado un enlace a ${u.email} para cambiar la contraseña.`) }, 'Cambiar mi contraseña')
+          : h('p', { class: 'cloud-note' }, 'Has entrado con Google: la contraseña la gestiona tu cuenta de Google.'),
         msg,
       );
       return;
     }
-    const email = h('input', { class: 'cloud-input', type: 'email', autocomplete: 'email', placeholder: 'tu@correo.com', 'aria-label': 'Correo' });
-    const pass = h('input', { class: 'cloud-input', type: 'password', autocomplete: 'current-password', placeholder: 'Contraseña', 'aria-label': 'Contraseña' });
-    const creds = () => [email.value.trim(), pass.value];
-    body.append(
-      h('p', { class: 'cloud-lead' }, 'Inicia sesión y tu progreso se guardará en tu cuenta: no lo perderás y lo verás igual en todos tus dispositivos.'),
-      h('button', { class: 'btn primary cloud-google', type: 'button', onClick: () => run(signInGoogle) },
-        h('span', { class: 'g', 'aria-hidden': 'true' }, 'G'), 'Continuar con Google'),
-      h('div', { class: 'cloud-or' }, h('span', {}, 'o con tu correo')),
-      h('form', { class: 'cloud-form', onSubmit: (e) => { e.preventDefault(); run(() => signInEmail(...creds())); } },
-        email, pass,
-        h('div', { class: 'cloud-row' },
-          h('button', { class: 'btn primary', type: 'submit' }, 'Entrar'),
-          h('button', { class: 'btn', type: 'button', onClick: () => run(() => signUpEmail(...creds())) }, 'Crear cuenta')),
-        h('button', { class: 'linkish', type: 'button', onClick: () => {
-          if (!email.value.trim()) { say('Escribe tu correo arriba y vuelve a pulsar.', 'err'); return; }
-          run(() => resetPassword(email.value.trim()), 'Te he enviado un correo para cambiar la contraseña.');
-        } }, 'He olvidado la contraseña')),
-      msg,
-      h('p', { class: 'cloud-note' }, 'Lo que ya tengas en este navegador no se pierde: se suma a lo que haya en tu cuenta.'),
-    );
+    body.append(...authView());
   };
+
+  /* --- Pantallas sin sesión: entrar · crear cuenta · recuperar contraseña --- */
+  let mode = 'login';
+  let typedEmail = '';
+  const setMode = (m) => { mode = m; say(''); repaint(); body.querySelector('input')?.focus({ preventScroll: true }); };
+
+  const field = (label, input, extra) => h('label', { class: 'cloud-field' }, h('span', {}, label), extra ? h('div', { class: 'cloud-pass' }, input, extra) : input);
+  const emailInput = () => {
+    const el = h('input', { class: 'cloud-input', type: 'email', autocomplete: 'email', inputmode: 'email', autocapitalize: 'none', spellcheck: 'false', placeholder: 'tu@correo.com', required: true });
+    el.value = typedEmail;
+    el.addEventListener('input', () => { typedEmail = el.value; });
+    return el;
+  };
+  const passInput = (autocomplete, placeholder = '') => h('input', { class: 'cloud-input', type: 'password', autocomplete, placeholder, required: true, minlength: '6' });
+  const eye = (...inputs) => {
+    const b = h('button', { class: 'cloud-eye', type: 'button', 'aria-label': 'Mostrar contraseña', 'aria-pressed': 'false' }, 'Ver');
+    b.addEventListener('click', () => {
+      const show = inputs[0].type === 'password';
+      inputs.forEach((i) => { i.type = show ? 'text' : 'password'; });
+      b.textContent = show ? 'Ocultar' : 'Ver';
+      b.setAttribute('aria-pressed', String(show));
+      b.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
+    });
+    return b;
+  };
+  const google = (label) => [
+    h('button', { class: 'btn cloud-google', type: 'button', onClick: () => run(signInGoogle) },
+      h('span', { class: 'g', 'aria-hidden': 'true' }, 'G'), label),
+    h('div', { class: 'cloud-or' }, h('span', {}, 'o con tu correo')),
+  ];
+  const tabs = () => h('div', { class: 'cloud-tabs', role: 'tablist' },
+    h('button', { type: 'button', role: 'tab', 'aria-selected': String(mode === 'login'), class: mode === 'login' ? 'on' : '', onClick: () => setMode('login') }, 'Entrar'),
+    h('button', { type: 'button', role: 'tab', 'aria-selected': String(mode === 'signup'), class: mode === 'signup' ? 'on' : '', onClick: () => setMode('signup') }, 'Crear cuenta'));
+
+  function authView() {
+    if (mode === 'reset') {
+      const email = emailInput();
+      return [
+        h('p', { class: 'cloud-lead' }, 'Escribe el correo de tu cuenta y te enviaremos un enlace para elegir una contraseña nueva.'),
+        h('form', { class: 'cloud-form', onSubmit: (e) => {
+          e.preventDefault();
+          run(() => resetPassword(email.value.trim()), 'Si hay una cuenta con ese correo, te llegará un enlace en unos minutos. Mira también en spam.');
+        } },
+          field('Correo', email),
+          h('button', { class: 'btn primary cloud-main', type: 'submit' }, 'Enviar enlace'),
+          msg),
+        h('button', { class: 'linkish', type: 'button', onClick: () => setMode('login') }, '← Volver a entrar'),
+      ];
+    }
+    if (mode === 'signup') {
+      const email = emailInput();
+      const p1 = passInput('new-password', 'Mínimo 6 caracteres');
+      const p2 = passInput('new-password');
+      return [
+        tabs(),
+        ...google('Crear cuenta con Google'),
+        h('form', { class: 'cloud-form', onSubmit: (e) => {
+          e.preventDefault();
+          if (p1.value !== p2.value) { say('Las dos contraseñas no coinciden.', 'err'); p2.focus(); return; }
+          run(() => signUpEmail(email.value.trim(), p1.value));
+        } },
+          field('Correo', email),
+          field('Contraseña', p1, eye(p1, p2)),
+          field('Repite la contraseña', p2),
+          h('button', { class: 'btn primary cloud-main', type: 'submit' }, 'Crear cuenta'),
+          msg),
+        h('p', { class: 'cloud-note' }, 'Lo que ya tengas en este navegador no se pierde: se suma a tu cuenta nueva.'),
+      ];
+    }
+    const email = emailInput();
+    const pass = passInput('current-password');
+    return [
+      tabs(),
+      h('p', { class: 'cloud-lead' }, 'Entra y tu progreso se guardará en tu cuenta: no lo perderás y lo verás igual en el móvil, la tablet y el ordenador.'),
+      ...google('Entrar con Google'),
+      h('form', { class: 'cloud-form', onSubmit: (e) => { e.preventDefault(); run(() => signInEmail(email.value.trim(), pass.value)); } },
+        field('Correo', email),
+        field('Contraseña', pass, eye(pass)),
+        h('button', { class: 'btn primary cloud-main', type: 'submit' }, 'Entrar'),
+        msg),
+      h('div', { class: 'cloud-links' },
+        h('button', { class: 'linkish', type: 'button', onClick: () => setMode('reset') }, '¿Has olvidado la contraseña?'),
+        h('button', { class: 'linkish', type: 'button', onClick: () => setMode('signup') }, '¿No tienes cuenta? Créala')),
+    ];
+  }
 
   dialog = h('dialog', { class: 'cloud-dialog', 'aria-label': 'Guardar el progreso en la nube' },
     h('div', { class: 'cloud-card' }, xBtn, h('h3', {}, 'Tu progreso en la nube'), body));
