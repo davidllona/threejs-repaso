@@ -6,6 +6,7 @@ import { disposeAllStages } from './stage.js';
 import { h } from './ui.js';
 import { progress, current } from './progress.js';
 import { renderCardLesson } from './cards.js';
+import { mountCloud } from './cloud.js';
 
 const sidebar = document.getElementById('sidebar');
 const lessonEl = document.getElementById('lesson');
@@ -59,6 +60,7 @@ function buildSidebar() {
 
   const prog = h('div', { class: 'side-progress' }, h('span', { id: 'progText' }), h('div', { class: 'bar' }, h('i', { id: 'progBar' })));
   sidebar.append(prog);
+  mountCloud(sidebar, topbarProg);
   refreshProgress();
 }
 

@@ -165,6 +165,19 @@ export function renderCardLesson(root, item, cards, idx, { FLAT }) {
     });
     segs.push(a);
   }
+  // Si llega progreso de otro dispositivo (js/cloud.js), la barra se actualiza sola.
+  const repaintSegs = () => {
+    const now = progress.cards(lessonId);
+    segs.forEach((a, i) => {
+      if (i >= cards.length) return;
+      const s = now[i];
+      a.classList.toggle('ok', s === 'right');
+      a.classList.toggle('ko', s === 'wrong');
+      a.classList.toggle('seen', !!s && s !== 'right' && s !== 'wrong');
+    });
+  };
+  window.addEventListener('tj-progress', repaintSegs);
+  window.addEventListener('hashchange', () => window.removeEventListener('tj-progress', repaintSegs), { once: true });
   const head = h('header', { class: 'card-head' },
     h('div', { class: 'card-meta' },
       h('span', { class: 'card-lesson' }, item.title),

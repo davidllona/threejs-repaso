@@ -671,3 +671,71 @@ details.more p, details.more li { font-size: 17px; line-height: 1.65; }
   .card-segs { padding: 6px 0; }
 }
 .lab-editors.one { grid-template-columns: minmax(0, 1fr); }
+
+/* ======================================================================
+   PROGRESO EN LA NUBE (js/cloud.js)
+   ====================================================================== */
+.cloud-box {
+  margin: 0 10px 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface); display: grid; gap: 10px;
+}
+.cloud-head { display: flex; gap: 10px; align-items: flex-start; }
+.cloud-line { display: block; font: 600 13px/1.35 var(--sans); color: var(--text); }
+.cloud-who { display: block; font: 12.5px/1.4 var(--sans); color: var(--muted); overflow-wrap: anywhere; }
+.cloud-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; margin-top: 4px; background: var(--muted); }
+.cloud-box[data-state="ok"] .cloud-dot, .cloud-dot.top[data-state="ok"] { background: var(--ok); }
+.cloud-box[data-state="busy"] .cloud-dot, .cloud-dot.top[data-state="busy"] { background: var(--light); }
+.cloud-box[data-state="err"] .cloud-dot, .cloud-dot.top[data-state="err"] { background: var(--bad); }
+.cloud-box[data-state="err"] .cloud-line { color: var(--bad); font-weight: 500; }
+.cloud-box[data-state="na"] .cloud-dot { background: transparent; border: 1px solid var(--line); }
+.cloud-btn { width: 100%; }
+.cloud-dot.top { display: none; margin: 0 0 0 -4px; }
+.cloud-dot.top[data-state="ok"], .cloud-dot.top[data-state="busy"], .cloud-dot.top[data-state="err"] { display: inline-block; }
+
+.btn.ghost { background: transparent; }
+.btn.small { padding: 7px 12px; font-size: 13px; }
+
+.cloud-dialog {
+  padding: 0; border: 0; background: transparent; color: var(--text);
+  width: min(420px, calc(100vw - 24px)); max-height: calc(100dvh - 24px);
+}
+.cloud-dialog::backdrop { background: rgb(10 12 16 / .7); }
+.cloud-card {
+  position: relative; background: var(--bg); border: 1px solid var(--line); border-radius: 16px;
+  padding: 22px 20px 20px; box-shadow: 0 20px 60px rgb(0 0 0 / .45);
+}
+.cloud-card h3 { margin: 0 36px 10px 0; font: 600 22px/1.2 var(--serif); }
+.cloud-x {
+  position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; border-radius: 10px;
+  border: 0; background: transparent; color: var(--muted); font-size: 18px; cursor: pointer;
+}
+.cloud-x:hover { color: var(--text); background: var(--surface); }
+.cloud-body { display: grid; gap: 12px; }
+.cloud-lead { margin: 0; font: 15px/1.55 var(--sans); color: var(--text-soft); }
+.cloud-note { margin: 0; font: 13px/1.5 var(--sans); color: var(--muted); }
+.cloud-google { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 46px; font-size: 15px; }
+.cloud-google .g {
+  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  background: #fff; color: #4285f4; font: 700 14px var(--sans);
+}
+.cloud-or { display: flex; align-items: center; gap: 10px; color: var(--muted); font: 12.5px var(--sans); }
+.cloud-or::before, .cloud-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.cloud-form { display: grid; gap: 10px; }
+.cloud-input {
+  font: 16px var(--sans); color: var(--text); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 11px 12px; min-height: 46px; width: 100%;
+}
+.cloud-input:focus { outline: 2px solid var(--shader); outline-offset: 1px; border-color: transparent; }
+.cloud-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.cloud-row .btn { flex: 1 1 0; min-height: 44px; }
+.linkish {
+  justify-self: start; background: none; border: 0; padding: 6px 0; color: var(--shader);
+  font: 13.5px var(--sans); text-decoration: underline; cursor: pointer;
+}
+.cloud-msg { margin: 0; font: 14px/1.45 var(--sans); min-height: 0; }
+.cloud-msg:empty { display: none; }
+.cloud-msg[data-kind="err"] { color: var(--bad); }
+.cloud-msg[data-kind="ok"] { color: var(--ok); }
+.cloud-dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font: 14px/1.4 var(--sans); }
+.cloud-dl dt { color: var(--muted); }
+.cloud-dl dd { margin: 0; overflow-wrap: anywhere; }

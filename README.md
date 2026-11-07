@@ -32,6 +32,33 @@ Las tarjetas están en `js/lessons/*.js` (cada archivo exporta un array) y el mo
 
 El progreso (aciertos por tarjeta y lecciones completadas) se guarda en el `localStorage` de tu navegador.
 
+## Progreso en la nube (Firebase)
+
+Si inicias sesión (botón **Guardar mi progreso**, arriba del índice), el progreso se guarda en Firebase y lo ves igual en el móvil, la tablet y el ordenador. Sin sesión, todo sigue funcionando como antes: solo en el `localStorage` de ese navegador.
+
+- Acceso con **Google** o con **correo y contraseña** (Firebase Authentication del proyecto `repasoia`).
+- Los datos van a Firestore, al documento `progreso-threejs/{uid}`, separado del otro cuaderno (`progreso/{uid}`).
+- Al entrar, el progreso de ese navegador **se suma** al de tu cuenta: nunca se pierde nada (un acierto gana a un fallo, y un fallo a una tarjeta solo vista).
+- Todo el código está en `js/cloud.js`. La configuración de Firebase que aparece ahí es pública por diseño: lo que protege los datos son las reglas de Firestore.
+
+Reglas de Firestore necesarias (Firestore → Reglas):
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /progreso/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    match /progreso-threejs/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
+```
+
+`davidllona.github.io` tiene que estar en Authentication → Configuración → Dominios autorizados.
+
 ## Móvil y tablet
 
 La web está pensada para usarse también con el dedo:
@@ -81,6 +108,7 @@ index.html            Página única; carga el importmap de Three.js y js/main.j
 css/styles.css        Todo el estilo (tema oscuro, código, demos, laboratorios) y la parte responsive (al final del archivo)
 vendor/three/         Three.js r177 copiado en local (sin CDN) + OrbitControls, RoomEnvironment…
 js/main.js            Router por hash (#/modified/3 = lección y tarjeta), menú lateral y progreso
+js/cloud.js           Inicio de sesión (Google o correo) y sincronización del progreso con Firebase
 js/cards.js           Motor de tarjetas: barra segmentada, preguntas (test, predecir, hueco, ordenar) y repaso
 js/progress.js        Progreso guardado en localStorage (lecciones y resultado de cada tarjeta)
 js/stage.js           createStage(): escena + cámara + renderer para una demo, con limpieza al cambiar de lección
